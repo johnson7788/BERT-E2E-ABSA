@@ -28,7 +28,6 @@ MODEL_CLASSES = {
     'xlnet': (XLNetConfig, XLNetABSATagger, XLNetTokenizer)
 }
 
-
 def set_seed(args):
     random.seed(args.seed)
     np.random.seed(args.seed)
@@ -40,24 +39,24 @@ def set_seed(args):
 def init_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--data_dir", default=None, type=str, required=True,
-                        help="The input data dir. Should contain the .tsv files (or other data files) for the task.")
+                        help="数据目录. Should contain the .tsv files (or other data files) for the task.")
     parser.add_argument("--model_type", default=None, type=str, required=True,
-                        help="Model type selected in the list: " + ", ".join(MODEL_CLASSES.keys()))
+                        help="模型的类型: " + ", ".join(MODEL_CLASSES.keys()))
     parser.add_argument("--absa_type", default=None, type=str, required=True,
-                        help="Downstream absa layer type selected in the list: [linear, gru, san, tfm, crf]")
+                        help="在列表中选择的下游Absa图层类型: [linear, gru, san, tfm, crf]")
     parser.add_argument("--tfm_mode", default=None, type=str, required=True,
-                        help="mode of the pre-trained transformer, selected from: [finetune]")
+                        help="预训练transformer的模式: [finetune]")
     parser.add_argument("--fix_tfm", default=None, type=int, required=True,
-                        help="whether fix the transformer params or not")
+                        help="是否固定transformer参数")
     parser.add_argument("--model_name_or_path", default=None, type=str, required=True,
-                        help="Path to pre-trained model or shortcut name selected in the list: " + ", ".join(
+                        help="列表中选择的预训练模型路径或shortcut名称： " + ", ".join(
                             ALL_MODELS))
     parser.add_argument("--task_name", default=None, type=str, required=True,
-                        help="The name of the task to train selected in the list: " + ", ".join(processors.keys()))
+                        help="列表中选择的要训练任务的名称：" + ", ".join(processors.keys()))
 
-    ## Other parameters
+    ## 其他参数
     parser.add_argument("--config_name", default="", type=str,
-                        help="Pretrained config name or path if not the same as model_name")
+                        help="预训练的配置名称或路径（如果与model_name不同）")
     parser.add_argument("--tokenizer_name", default="", type=str,
                         help="Pretrained tokenizer name or path if not the same as model_name")
     parser.add_argument("--cache_dir", default="", type=str,

@@ -38,6 +38,7 @@ for run_id, seed in enumerate(seed_numbers):
         os.remove(log_file)
     with open(log_file, 'a') as fp:
         fp.write("\nIn run %s/5 (seed %s):\n" % (run_id, seed))
+    print(command)
     os.system(command)
     if overfit:
         # only conduct one run
