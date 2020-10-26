@@ -1,5 +1,7 @@
 # Compiled class file
 *.class
+bert-linear-rest15-finetune
+cache
 
 # Log file
 *.log
