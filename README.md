@@ -1,5 +1,5 @@
 # BERT-E2E-ABSA
-Exploiting **BERT** **E**nd-**t**o-**E**nd **A**spect-**B**ased **S**entiment **A**nalysis
+利用BERT端到端aspect-based的情感分析
 <p align="center">
     <img src="architecture.jpg" height="400"/>
 </p>
@@ -23,13 +23,13 @@ Exploiting **BERT** **E**nd-**t**o-**E**nd **A**spect-**B**ased **S**entiment **
 
 ## Dataset
 * ~~Restaurant: retaurant reviews from SemEval 2014 (task 4), SemEval 2015 (task 12) and SemEval 2016 (task 5) (rest_total)~~
-* (**Important**) Restaurant: restaurant reviews from SemEval 2014 (rest14), restaurant reviews from SemEval 2015 (rest15), restaurant reviews from SemEval 2016 (rest16). Please refer to the newly updated files in ```./data```
-* (**Important**) **DO NOT** use the ```rest_total``` dataset built by ourselves again, more details can be found in [Updated Results](https://github.com/lixin4ever/BERT-E2E-ABSA/blob/master/README.md#updated-results-important).
+* (**Important**) Restaurant：SemEval 2014（rest14）的restaurant点评，SemEval 2015（rest15）的restaurant点评，SemEval 2016（rest16）的restaurant点评。请参考中的新更新文件```./data```
+* (**Important**) 不要使用 ```rest_total``` 我们自己建立的数据集，更多详细信息请参见 [Updated Results](https://github.com/lixin4ever/BERT-E2E-ABSA/blob/master/README.md#updated-results-important).
 * Laptop: laptop reviews from SemEval 2014 (laptop14)
 
 
 ## Quick Start
-* The valid tagging strategies/schemes (i.e., the ways representing text or entity span) in this project are **BIEOS** (also called **BIOES** or **BMES**), **BIO** (also called **IOB2**) and **OT** (also called **IO**). If you are not familiar with these terms, I strongly recommend you to read the following materials before running the program: 
+* 此项目中有效的标签策略/方案（即表示文本或实体范围的方式）为**BIEOS**（也称为**BIOES**或**BMES**），**BIO**（也称为**IOB2**）和**OT**（也称为**IO**）。如果您不熟悉这些术语，强烈提议您在运行程序之前阅读以下材料：
 
   a. [Inside–outside–beginning (tagging)](https://en.wikipedia.org/wiki/Inside%E2%80%93outside%E2%80%93beginning_(tagging)). 
   
@@ -37,28 +37,28 @@ Exploiting **BERT** **E**nd-**t**o-**E**nd **A**spect-**B**ased **S**entiment **
   
   c. The [paper](https://www.aclweb.org/anthology/D19-5505.pdf) associated with this project. 
 
-* Reproduce the results on Restaurant and Laptop dataset:
+* 在Restaurant and Laptop 数据集上重现结果：
   ```
-  # train the model with 5 different seed numbers
+  # 用5种不同的随机种子数训练模型
   python fast_run.py 
   ```
-* Train the model on other ABSA dataset:
+* 在其他ABSA数据集上训练模型：
   
-  1. place data files in the directory `./data/[YOUR_DATASET_NAME]` (please note that you need to re-organize your data files so that it can be directly adapted to this project, following the input format of `./data/laptop14/train.txt` should be OK).
+  1. 将数据文件放 `./data/[YOUR_DATASET_NAME]` 在目录中， (请注意，您需要按照的输入格式`./data/laptop14/train.txt`重新组织数据文件，以便可以将其直接应用于该项目。).
   
-  2. set `TASK_NAME` in `train.sh` as `[YOUR_DATASET_NAME]`.
+  2. 在 `train.sh` 中设置 `TASK_NAME` 为 `[YOUR_DATASET_NAME]`.
   
-  3. train the model:  `sh train.sh`
+  3. 训练模型:  `sh train.sh`
 
-* (** **New feature** **) Perform pure inference/direct transfer over test/unseen data using the trained ABSA model:
+* (** **New feature** **) 使用训练过的ABSA模型对test/未见过的数据进行纯推理/直接转移
 
-  1. place data file in the directory `./data/[YOUR_EVAL_DATASET_NAME]`.
+  1. 将数据文件放在目录中  `./data/[YOUR_EVAL_DATASET_NAME]`.
   
-  2. set `TASK_NAME` in `work.sh` as `[YOUR_EVAL_DATASET_NAME]`
+  2. `TASK_NAME` 为 `[YOUR_EVAL_DATASET_NAME]`
   
-  3. set `ABSA_HOME` in `work.sh` as `[HOME_DIRECTORY_OF_YOUR_ABSA_MODEL]`
+  3. 在 `work.sh` 中设置  `ABSA_HOME`  为 `[HOME_DIRECTORY_OF_YOUR_ABSA_MODEL]`
   
-  4. run: `sh work.sh`
+  4. 运行: `sh work.sh`
 
 ## Environment
 * OS: REHL Server 6.4 (Santiago)
@@ -66,9 +66,14 @@ Exploiting **BERT** **E**nd-**t**o-**E**nd **A**spect-**B**ased **S**entiment **
 * CUDA: 10.0
 * cuDNN: v7.6.1
 
-## Updated results (IMPORTANT)
-* The data files of the ```rest_total``` dataset are created by concatenating the train/test counterparts from ```rest14```, ```rest15``` and ```rest16``` and our motivation is to build a larger training/testing dataset to stabilize the training/faithfully reflect the capability of the ABSA model. However, we recently found that the SemEval organizers directly treat the union set of ```rest15.train``` and ```rest15.test``` as the training set of rest16 (i.e., ```rest16.train```), and thus, there exists overlap between the ```rest_total.train``` and the ```rest_total.test```, which makes this dataset invalid. When you follow our works on this E2E-ABSA task, we hope you **DO NOT** use this ```rest_total``` dataset any more but change to the officially released ```rest14```, ```rest15``` and ```rest16```.
-* To facilitate the comparison in the future, we re-run our models following the above mentioned settings and report the results on ```rest14```, ```rest15``` and ```rest16```:  
+## 更新结果（重要）
+* ```rest_total``` 数据集的数据文件是通过将```rest14```, ```rest15``` and ```rest16``` 拼接得到的， 
+我们的动机是构建一个更大的训练/测试数据集，以稳定训练/忠实地反映ABSA模型的能力。
+但是，我们最近发现SemEval组织者将```rest15.train``` and ```rest15.test```的联合集直接视为rest16的训练集（即 ```rest16.train``` ），
+因此在```rest_total.train``` and the ```rest_total.test```之间存在重叠，
+这使得该数据集无效。当您按照我们的E2E-ABSA任务进行工作时，我们希望您不要再使用此 ```rest_total```数据集，
+而应改为正式发布的```rest14```, ```rest15``` and ```rest16```.
+* 为了便于将来进行比较，我们按照上述设置重新运行模型，并在```rest14```, ```rest15``` and ```rest16```上报告结果：
 
     | Model | rest14 | rest15 | rest16 |
     | --- | --- | --- | --- |
