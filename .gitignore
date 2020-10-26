@@ -2,6 +2,7 @@
 *.class
 bert-linear-rest15-finetune
 cache
+model_cache
 
 # Log file
 *.log

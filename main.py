@@ -58,29 +58,28 @@ def init_args():
     parser.add_argument("--config_name", default="", type=str,
                         help="预训练的配置名称或路径（如果与model_name不同）")
     parser.add_argument("--tokenizer_name", default="", type=str,
-                        help="Pretrained tokenizer name or path if not the same as model_name")
+                        help="预训练的toknizer名称或路径（如果与model_name不同")
     parser.add_argument("--cache_dir", default="", type=str,
-                        help="Where do you want to store the pre-trained models downloaded from s3")
+                        help="您想在哪里存储从s3下载的预训练模型")
     parser.add_argument("--max_seq_length", default=128, type=int,
-                        help="The maximum total input sequence length after tokenization. Sequences longer "
-                             "than this will be truncated, sequences shorter will be padded.")
+                        help="分词后的最大总输入序列长度。序列比这更长将被截断，较短的序列将填充。")
     parser.add_argument("--do_train", action='store_true',
-                        help="Whether to run training.")
+                        help="是否进行训练。")
     parser.add_argument("--do_eval", action='store_true',
-                        help="Whether to run eval on the dev set.")
+                        help="是否在开发集上运行评估。")
     parser.add_argument("--evaluate_during_training", action='store_true',
-                        help="Rul evaluation during training at each logging step.")
+                        help="训练期间在每个测井步骤运行评估。")
     parser.add_argument("--do_lower_case", action='store_true',
-                        help="Set this flag if you are using an uncased model.")
+                        help="如果使用的是无大小写的模型，请设置此flag。")
 
     parser.add_argument("--per_gpu_train_batch_size", default=8, type=int,
-                        help="Batch size per GPU/CPU for training.")
+                        help="训练时每个GPU / CPU的批次大小。")
     parser.add_argument("--per_gpu_eval_batch_size", default=8, type=int,
-                        help="Batch size per GPU/CPU for evaluation.")
+                        help="每个GPU / CPU的批次大小以进行评估。")
     parser.add_argument('--gradient_accumulation_steps', type=int, default=1,
-                        help="Number of updates steps to accumulate before performing a backward/update pass.")
+                        help="在执行向后/更新过程之前要累积的更新步骤数。")
     parser.add_argument("--learning_rate", default=5e-5, type=float,
-                        help="The initial learning rate for Adam.")
+                        help="Adam的初始学习率。")
     parser.add_argument("--weight_decay", default=0.0, type=float,
                         help="Weight deay if we apply some.")
     parser.add_argument("--adam_epsilon", default=1e-8, type=float,
@@ -88,29 +87,29 @@ def init_args():
     parser.add_argument("--max_grad_norm", default=1.0, type=float,
                         help="Max gradient norm.")
     parser.add_argument("--num_train_epochs", default=3.0, type=float,
-                        help="Total number of training epochs to perform.")
+                        help="要执行的训练epoch总数。")
     parser.add_argument("--max_steps", default=-1, type=int,
-                        help="If > 0: set total number of training steps to perform. Override num_train_epochs.")
+                        help="如果> 0：设置要执行的训练步骤总数。覆盖num_train_epochs")
     parser.add_argument("--warmup_steps", default=0, type=int,
                         help="Linear warmup over warmup_steps.")
 
     parser.add_argument('--logging_steps', type=int, default=50,
                         help="Log every X updates steps.")
     parser.add_argument('--save_steps', type=int, default=100,
-                        help="Save checkpoint every X updates steps.")
+                        help="每X个更新步骤保存一个checkpoint")
     parser.add_argument("--eval_all_checkpoints", action='store_true',
-                        help="Evaluate all checkpoints starting with the same prefix as model_name ending and ending with step number")
+                        help="评估所有检查点，这些检查点以与model_name相同的前缀开头，并以步骤号结尾")
     parser.add_argument("--no_cuda", action='store_true',
-                        help="Avoid using CUDA when available")
+                        help="避免在可用时使用CUDA")
     parser.add_argument('--overwrite_output_dir', action='store_true',
-                        help="Overwrite the content of the output directory")
+                        help="覆盖输出目录的内容")
     parser.add_argument('--overwrite_cache', action='store_true',
-                        help="Overwrite the cached training and evaluation sets")
+                        help="覆盖缓存的训练和评估集")
     parser.add_argument('--seed', type=int, default=42,
-                        help="random seed for initialization")
+                        help="随机种子进行初始化")
     parser.add_argument('--tagging_schema', type=str, default='BIEOS')
 
-    parser.add_argument("--overfit", type=int, default=0, help="if evaluate overfit or not")
+    parser.add_argument("--overfit", type=int, default=0, help="是否评估过拟合")
 
     parser.add_argument("--local_rank", type=int, default=-1,
                         help="For distributed training: local_rank")
@@ -384,7 +383,7 @@ def main():
     # Set seed
     set_seed(args)
 
-    # Prepare task
+    #准备数据处理部分
     args.task_name = args.task_name.lower()
     if args.task_name not in processors:
         raise ValueError("Task not found: %s" % args.task_name)
@@ -396,19 +395,18 @@ def main():
     if args.local_rank not in [-1, 0]:
         torch.distributed.barrier()
 
-    # initialize the pre-trained model
+    #初始化预训练模型,args.model_type是bert或xlnet等
     args.model_type = args.model_type.lower()
     config_class, model_class, tokenizer_class = MODEL_CLASSES[args.model_type]
     config = config_class.from_pretrained(args.config_name if args.config_name else args.model_name_or_path,
                                           num_labels=num_labels, finetuning_task=args.task_name)
     tokenizer = tokenizer_class.from_pretrained(args.tokenizer_name if args.tokenizer_name else args.model_name_or_path,
                                                 do_lower_case=args.do_lower_case, cache_dir='./cache')
-
+    #absa_type 是最后用linear还是crf，还是rnn或self-attention
     config.absa_type = args.absa_type
     config.tfm_mode = args.tfm_mode
     config.fix_tfm = args.fix_tfm
-    model = model_class.from_pretrained(args.model_name_or_path, from_tf=bool('.ckpt' in args.model_name_or_path),
-                                        config=config, cache_dir='./cache')
+    model = model_class.from_pretrained(args.model_name_or_path, from_tf=bool('.ckpt' in args.model_name_or_path),config=config, cache_dir='./model_cache')
     # Distributed and parallel training
     model.to(args.device)
     if args.local_rank != -1:
