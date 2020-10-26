@@ -406,9 +406,10 @@ def main():
     config.absa_type = args.absa_type
     config.tfm_mode = args.tfm_mode
     config.fix_tfm = args.fix_tfm
+    #加载预训练模型，并缓存到model_cache
     model = model_class.from_pretrained(args.model_name_or_path, from_tf=bool('.ckpt' in args.model_name_or_path),config=config, cache_dir='./model_cache')
-    # Distributed and parallel training
     model.to(args.device)
+    #分布式并行训练，如果启用
     if args.local_rank != -1:
         model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.local_rank],
                                                           output_device=args.local_rank,
@@ -416,7 +417,7 @@ def main():
     elif args.n_gpu > 1:
         model = torch.nn.DataParallel(model)
 
-    # Training
+    #加载和缓存数据集,训练
     if args.do_train:
         train_dataset, train_evaluate_label_ids = load_and_cache_examples(args, args.task_name, tokenizer, mode='train')
         global_step, tr_loss = train(args, train_dataset, model, tokenizer)
@@ -439,7 +440,7 @@ def main():
         tokenizer = tokenizer_class.from_pretrained(args.output_dir)
         model.to(args.device)
 
-    # Validation
+    #验证阶段
     results = {}
     best_f1 = -999999.0
     best_checkpoint = None
@@ -447,18 +448,18 @@ def main():
     if args.eval_all_checkpoints:
         checkpoints = list(os.path.dirname(c) for c in sorted(glob.glob(args.output_dir + '/**/' + WEIGHTS_NAME, recursive=True)))
         logging.getLogger("pytorch_transformers.modeling_utils").setLevel(logging.WARN)  # Reduce logging
-    logger.info("Perform validation on the following checkpoints: %s", checkpoints)
+    logger.info("在以下checkpoints上执行验证: %s", checkpoints)
     test_results = {}
     for checkpoint in checkpoints:
         global_step = checkpoint.split('-')[-1] if len(checkpoints) > 1 else ""
         if global_step == 'finetune' or global_step == 'train' or global_step == 'fix' or global_step == 'overfit':
             continue
-        # validation set
+        #验证集
         model = model_class.from_pretrained(checkpoint)
         model.to(args.device)
         dev_result = evaluate(args, model, tokenizer, mode='dev', prefix=global_step)
 
-        # regard the micro-f1 as the criteria of model selection
+        # 使用micro-f1 作为模型选择的标准
         if int(global_step) > 1000 and dev_result['micro-f1'] > best_f1:
             best_f1 = dev_result['micro-f1']
             best_checkpoint = checkpoint
