@@ -24,18 +24,18 @@
 ## Dataset
 * ~~Restaurant: retaurant reviews from SemEval 2014 (task 4), SemEval 2015 (task 12) and SemEval 2016 (task 5) (rest_total)~~
 * (**Important**) Restaurant：SemEval 2014（rest14）的restaurant点评，SemEval 2015（rest15）的restaurant点评，SemEval 2016（rest16）的restaurant点评。请参考中的新更新文件```./data```
-* (**Important**) 不要使用 ```rest_total``` 我们自己建立的数据集，更多详细信息请参见 [Updated Results](https://github.com/lixin4ever/BERT-E2E-ABSA/blob/master/README.md#updated-results-important).
+* (**Important**) 不要使用 ```rest_total``` ，请使用我们自己建立的数据集，更多详细信息请参见最下面的 [更新结果](#更新结果（重要）).
 * Laptop: laptop reviews from SemEval 2014 (laptop14)
 
 
 ## Quick Start
 * 此项目中有效的标签策略/方案（即表示文本或实体范围的方式）为**BIEOS**（也称为**BIOES**或**BMES**），**BIO**（也称为**IOB2**）和**OT**（也称为**IO**）。如果您不熟悉这些术语，强烈提议您在运行程序之前阅读以下材料：
 
-  a. [Inside–outside–beginning (tagging)](https://en.wikipedia.org/wiki/Inside%E2%80%93outside%E2%80%93beginning_(tagging)). 
+  a. wiki [Inside–outside–beginning (tagging)](https://en.wikipedia.org/wiki/Inside%E2%80%93outside%E2%80%93beginning_(tagging)). 
   
-  b. [Representing Text Chunks](https://www.aclweb.org/anthology/E99-1023.pdf). 
+  b. 论文[Representing Text Chunks](https://www.aclweb.org/anthology/E99-1023.pdf). 
   
-  c. The [paper](https://www.aclweb.org/anthology/D19-5505.pdf) associated with this project. 
+  c. 这个项目的论文 [paper](https://www.aclweb.org/anthology/D19-5505.pdf) . 
 
 * 在Restaurant and Laptop 数据集上重现结果：
   ```
