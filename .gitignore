@@ -1,6 +1,6 @@
 # Compiled class file
 *.class
-bert-linear-rest15-finetune
+bert-linear-rest15-finetune/checkpoint*
 cache
 model_cache
 model_result
