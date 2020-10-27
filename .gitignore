@@ -5,6 +5,7 @@ cache
 model_cache
 model_result
 data/rest15/cached_train*
+runs
 
 # Log file
 *.log
