@@ -5,42 +5,51 @@ import numpy as np
 
 def ot2bieos_ts(ts_tag_sequence):
     """
+    一行文本的标签， ot标签转换成bieos标签
     ot2bieos function for targeted-sentiment task, ts refers to targeted -sentiment / aspect-based sentiment
-    :param ts_tag_sequence: tag sequence for targeted sentiment
-    :return:
+    :param ts_tag_sequence: 目标情感的标签序列,ag sequence for targeted sentiment, 例如['O', 'O',  'O', 'T-NEG', 'O', 'O', 'O']
+    :return: ['O', 'O',  'O', 'S-NEG', 'O', 'O', 'O']
     """
+    #总共的标签数量n_tags
     n_tags = len(ts_tag_sequence)
+    #用于存储转换后的标签列表
     new_ts_sequence = []
     prev_pos = '$$$'
     for i in range(n_tags):
         cur_ts_tag = ts_tag_sequence[i]
         if cur_ts_tag == 'O' or cur_ts_tag == 'EQ':
-            # when meet the EQ label, regard it as O label
+            # 当看到EQ标签时，也将其视为O标签
             new_ts_sequence.append('O')
             cur_pos = 'O'
         else:
             cur_pos, cur_sentiment = cur_ts_tag.split('-')
-            # cur_pos is T
+            # cur_pos是T，cur_sentiment是对应的情感
             if cur_pos != prev_pos:
-                # prev_pos is O and new_cur_pos can only be B or S
+                #prev_pos是O，new_cur_pos只能是B或S , B表示开始，S表示单个单词
                 if i == n_tags - 1:
+                    #当前i是最后一个单词的时候，prev_pos是O，那么这一定是个S
                     new_ts_sequence.append('S-%s' % cur_sentiment)
                 else:
+                    # 判断下一个的标签，如果是O，那么这个也是S，因为S的前后都是O，否则就是B
                     next_ts_tag = ts_tag_sequence[i + 1]
                     if next_ts_tag == 'O':
                         new_ts_sequence.append('S-%s' % cur_sentiment)
                     else:
                         new_ts_sequence.append('B-%s' % cur_sentiment)
             else:
-                # prev_pos is T and new_cur_pos can only be I or E
+                #当前是T，prev_pos是也是T，连续2个T，那么下一个一定是I或者E，new_cur_pos只能是I或E ,[T,T,E] [T,T,I]
                 if i == n_tags - 1:
+                    #如果当前i是最后一个单词的时候，那么这一定是个S
                     new_ts_sequence.append('E-%s' % cur_sentiment)
                 else:
                     next_ts_tag = ts_tag_sequence[i + 1]
+                    # 如果下一个标签是O，说明这个标签应该是E，否则是I
                     if next_ts_tag == 'O':
+                        # [T,T,T,O]
                         new_ts_sequence.append('E-%s' % cur_sentiment)
                     else:
                         new_ts_sequence.append('I-%s' % cur_sentiment)
+        # 把当前标签记录一下，作为 prev_pos
         prev_pos = cur_pos
     return new_ts_sequence
 
@@ -136,37 +145,38 @@ def bio2ot_ts_batch(ts_tag_seqs):
 def tag2ts(ts_tag_sequence):
     """
     transform ts tag sequence to targeted sentiment
-    :param ts_tag_sequence: tag sequence for ts task
-    :return:
+    返回整个单词位置和唯一情感
+    :param ts_tag_sequence: tag sequence for ts task，使用所有tags
+    :return: 第一个数字是开始，第二个数字是结束， [(19, 19, 'NEG')]
     """
     n_tags = len(ts_tag_sequence)
     ts_sequence, sentiments = [], []
     beg, end = -1, -1
     for i in range(n_tags):
         ts_tag = ts_tag_sequence[i]
-        # current position and sentiment
-        # tag O and tag EQ will not be counted
+        # 当前的位置和情感
+        # 标签是O和EQ的不会被计入, 判断标签是O还是类似B-NES，如果是O的就，pos和sentiment都是O，否则就拆分
         eles = ts_tag.split('-')
         if len(eles) == 2:
             pos, sentiment = eles
         else:
             pos, sentiment = 'O', 'O'
         if sentiment != 'O':
-            # current word is a subjective word
+            # 当前单词是主观单词，当前是一个情感，不是O，那么就是NEG或其它
             sentiments.append(sentiment)
         if pos == 'S':
-            # singleton
+            # pos表示position，S是单个单词,例如 [(19, 19, 'NEG')]， 单个单词，单个情感
             ts_sequence.append((i, i, sentiment))
             sentiments = []
         elif pos == 'B':
             beg = i
             if len(sentiments) > 1:
-                # remove the effect of the noisy I-{POS,NEG,NEU}
+                # 去除噪音，噪音是指同一个词组中，每个字的情感不统一，需要统一，所以指定最后一个字作为整个词的情感
                 sentiments = [sentiments[-1]]
         elif pos == 'E':
             end = i
-            # schema1: only the consistent sentiment tags are accepted
-            # that is, all of the sentiment tags are the same
+            # schema1: 仅接受一致的情感标签， 也就是说，所有情感标签都相同
+            # 每个字的情感一致, 判断词的最后一个字的位置一定是大于起始位置的，并且情感是一致的
             if end > beg > -1 and len(set(sentiments)) == 1:
                 ts_sequence.append((beg, end, sentiment))
                 sentiments = []

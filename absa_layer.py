@@ -7,6 +7,9 @@ from torch.nn import CrossEntropyLoss
 
 
 class TaggerConfig:
+    """
+    模型的配置
+    """
     def __init__(self):
         self.hidden_dropout_prob = 0.1
         self.hidden_size = 768
@@ -15,6 +18,9 @@ class TaggerConfig:
 
 
 class SAN(nn.Module):
+    """
+    原始的self-attention结构
+    """
     def __init__(self, d_model, nhead, dropout=0.1):
         super(SAN, self).__init__()
         self.d_model = d_model
@@ -381,29 +387,33 @@ class LSTM(nn.Module):
 class BertABSATagger(BertPreTrainedModel):
     def __init__(self, bert_config):
         """
-
+        自定义预训练模型，继承自BertPreTrainedModel
         :param bert_config: configuration for bert model
         """
         super(BertABSATagger, self).__init__(bert_config)
+        # num_labels 样本的总数量
         self.num_labels = bert_config.num_labels
+        #设置模型的配置
         self.tagger_config = TaggerConfig()
+        # absa_type是linear或者[ gru, san, tfm, crf]
         self.tagger_config.absa_type = bert_config.absa_type.lower()
+        #
         if bert_config.tfm_mode == 'finetune':
-            # initialized with pre-trained BERT and perform finetuning
+            # 使用预训练的BERT初始化并执行微调
             # print("Fine-tuning the pre-trained BERT...")
             self.bert = BertModel(bert_config)
         else:
-            raise Exception("Invalid transformer mode %s!!!" % bert_config.tfm_mode)
+            raise Exception("无效的transformer mode %s!!!" % bert_config.tfm_mode)
         self.bert_dropout = nn.Dropout(bert_config.hidden_dropout_prob)
-        # fix the parameters in BERT and regard it as feature extractor
+        # 固定BERT中的参数并将其视为特征提取器
         if bert_config.fix_tfm:
-            # fix the parameters of the (pre-trained or randomly initialized) transformers during fine-tuning
+            # 在微调期间固定（预训练或随机初始化的）transformer的参数
             for p in self.bert.parameters():
                 p.requires_grad = False
-
+        # 表示进行处理的tagger层，可以是lstm，gru等
         self.tagger = None
         if self.tagger_config.absa_type == 'linear':
-            # hidden size at the penultimate layer
+            # 倒数第二层的hidden size， 如果是linear
             penultimate_hidden_size = bert_config.hidden_size
         else:
             self.tagger_dropout = nn.Dropout(self.tagger_config.hidden_dropout_prob)
@@ -416,7 +426,7 @@ class BertABSATagger(BertPreTrainedModel):
                                   hidden_size=self.tagger_config.hidden_size,
                                   bidirectional=self.tagger_config.bidirectional)
             elif self.tagger_config.absa_type == 'tfm':
-                # transformer encoder layer
+                # 使用transformer结构
                 self.tagger = nn.TransformerEncoderLayer(d_model=bert_config.hidden_size,
                                                          nhead=12,
                                                          dim_feedforward=4*bert_config.hidden_size,
@@ -428,19 +438,33 @@ class BertABSATagger(BertPreTrainedModel):
                 self.tagger = CRF(num_tags=self.num_labels)
             else:
                 raise Exception('Unimplemented downstream tagger %s...' % self.tagger_config.absa_type)
+            #penultimate_hidden_size 是tagger分类器处理完的维度
             penultimate_hidden_size = self.tagger_config.hidden_size
+        #最后一个线性层，分类结果
         self.classifier = nn.Linear(penultimate_hidden_size, bert_config.num_labels)
 
     def forward(self, input_ids, token_type_ids=None, attention_mask=None, labels=None,
                 position_ids=None, head_mask=None):
+        """
+        前向传播
+        :param input_ids:
+        :param token_type_ids:
+        :param attention_mask:
+        :param labels:
+        :param position_ids:
+        :param head_mask:
+        :return:
+        """
+        # bert返回结果  sequence_output, pooled_output, (hidden_states), (attentions)
         outputs = self.bert(input_ids, position_ids=position_ids, token_type_ids=token_type_ids,
                             attention_mask=attention_mask, head_mask=head_mask)
-        # the hidden states of the last Bert Layer, shape: (bsz, seq_len, hsz)
+        # 最后一个Bert层的隐藏状态的shape: (batch_size, seq_len, hidden_size), bert的输出结果作为我们的输入
         tagger_input = outputs[0]
+        #做一次Dropout, 形状不变 (batch_size, seq_len, hidden_size)
         tagger_input = self.bert_dropout(tagger_input)
         #print("tagger_input.shape:", tagger_input.shape)
         if self.tagger is None or self.tagger_config.absa_type == 'crf':
-            # regard classifier as the tagger
+            # 如果是选择的crf或者linear，直接使用线性分类器作为最后一层
             logits = self.classifier(tagger_input)
         else:
             if self.tagger_config.absa_type == 'lstm':
@@ -459,20 +483,29 @@ class BertABSATagger(BertPreTrainedModel):
                 raise Exception("Unimplemented downstream tagger %s..." % self.tagger_config.absa_type)
             classifier_input = self.tagger_dropout(classifier_input)
             logits = self.classifier(classifier_input)
+        #输出元素outputs元祖，把原来的outputs的从第二位开始的也追加到现在的outputs里面, logits维度[batch_size,seq_lenth, num_labels]
         outputs = (logits,) + outputs[2:]
-
+        #labels的维度[batch_size, sequence_length], 如果labels存在，计算损失，否则，只返回输出logits
         if labels is not None:
             if self.tagger_config.absa_type != 'crf':
+                #使用交叉熵计算损失
                 loss_fct = CrossEntropyLoss()
                 if attention_mask is not None:
+                    #如果attention_mask存在时，损失的计算需要计算真实损失, attention_mask维度[batch_sieze,seq_len] flatten 到1维
                     active_loss = attention_mask.view(-1) == 1
+                    # active_loss是bool值，padding的部分为false，没有padding的部分为true,
+                    # logits的维度从[batch_size,seq_lenth, num_labels]变成 [batch_size * seq_length, num_labels],
+                    # 然后只取active_loss为True部分的维度，计算真实损失 [True_length, num_labels]
                     active_logits = logits.view(-1, self.num_labels)[active_loss]
+                    #真实的labels[batch_size,seq_lenth] --> 拉平 [batch_size * seq_lenth], 取active_loss为True的部分,[True_length]
                     active_labels = labels.view(-1)[active_loss]
+                    # 使用交叉熵计算损失, active_logits [True_length, num_labels]  active_labels [True_length]
                     loss = loss_fct(active_logits, active_labels)
                 else:
                     loss = loss_fct(logits.view(-1, self.num_labels), labels.view(-1))
                 outputs = (loss,) + outputs
             else:
+                #通过crf计算损失，如果absa的type是crf
                 log_likelihood = self.tagger(inputs=logits, tags=labels, mask=attention_mask)
                 loss = -log_likelihood
                 outputs = (loss,) + outputs

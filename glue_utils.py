@@ -30,19 +30,17 @@ logger = logging.getLogger(__name__)
 SMALL_POSITIVE_CONST = 1e-4
 
 class InputExample(object):
-    """A single training/test example for simple sequence classification."""
-
+    """A single training/test example for simple sequence classification.
+    用于简单序列分类的单个训练/测试样本。
+    """
     def __init__(self, guid, text_a, text_b=None, label=None):
-        """Constructs a InputExample.
+        """构建 a InputExample.
 
         Args:
-            guid: Unique id for the example.
-            text_a: string. The untokenized text of the first sequence. For single
-            sequence tasks, only this sequence must be specified.
-            text_b: (Optional) string. The untokenized text of the second sequence.
-            Only must be specified for sequence pair tasks.
-            label: (Optional) string. The label of the example. This should be
-            specified for train and dev examples, but not for test examples.
+            guid: 样本的唯一uid, eg: 'train-4'
+            text_a: string. 第一个序列，没有tokenizer的text，对于单序列任务，只需要text_a
+            text_b: (Optional) string. 第二个序列，没有tokenizer的text，只有在进行序列对任务时才需要指定
+            label: (Optional) string. 样本的标签。这应该是指定用于训练和开发样本，但不用于测试样本。 测试样本不需要标签
         """
         self.guid = guid
         self.text_a = text_a
@@ -61,7 +59,7 @@ class InputFeatures(object):
 
 
 class SeqInputFeatures(object):
-    """A single set of features of data for the ABSA task"""
+    """ABSA任务的一组数据特征"""
     def __init__(self, input_ids, input_mask, segment_ids, label_ids, evaluate_label_ids):
         self.input_ids = input_ids
         self.input_mask = input_mask
@@ -115,6 +113,11 @@ class ABSAProcessor(DataProcessor):
         return self._create_examples(data_dir=data_dir, set_type='test', tagging_schema=tagging_schema)
 
     def get_labels(self, tagging_schema):
+        """
+        根据不同的tagging方式，返回不同的形式的所有labels集合
+        :param tagging_schema:
+        :return:
+        """
         if tagging_schema == 'OT':
             return []
         elif tagging_schema == 'BIO':
@@ -127,37 +130,52 @@ class ABSAProcessor(DataProcessor):
             raise Exception("Invalid tagging schema %s..." % tagging_schema)
 
     def _create_examples(self, data_dir, set_type, tagging_schema):
+        """
+        :param data_dir:  例如 './data/rest15'
+        :param set_type: 例如是train，或test或dev，组成train.txt
+        :param tagging_schema: 例如'BIEOS'
+        :return: 这个文件的所有行组成的examples，[InputExample(guid,label,text_a,text_b),...]
+        """
         examples = []
+        #原文件路径
         file = os.path.join(data_dir, "%s.txt" % set_type)
+        # class_count [0. 0. 0.], 存储统计所有的类别数量，【POS，NEG，NEU】-->【积极的标签总数，消极的标签总数，中性的标签总数】
         class_count = np.zeros(3)
         with open(file, 'r', encoding='UTF-8') as fp:
+            #sample_id样本计数，共计多少行
             sample_id = 0
             for line in fp:
+                #用####分割出标签和原始文本
                 sent_string, tag_string = line.strip().split('####')
+                #存储每个单词
                 words = []
+                #存储每个单词对应的标签
                 tags = []
                 for tag_item in tag_string.split(' '):
                     eles = tag_item.split('=')
                     if len(eles) == 1:
-                        raise Exception("Invalid samples %s..." % tag_string)
+                        raise Exception("无效样本 %s..." % tag_string)
                     elif len(eles) == 2:
                         word, tag = eles
                     else:
+                        #如果存在多个=号的情况，取最后一个=号后面的最为标签，其它作为单词
                         word = ''.join((len(eles) - 2) * ['='])
                         tag = eles[-1]
                     words.append(word)
                     tags.append(tag)
-                # convert from ot to bieos
+                #tagging方式从ot转换成BIEOS
                 if tagging_schema == 'BIEOS':
                     tags = ot2bieos_ts(tags)
                 elif tagging_schema == 'BIO':
                     tags = ot2bio_ts(tags)
                 else:
-                    # original tags follow the OT tagging schema, do nothing
+                    # 原始标签遵循OT标签架构，不执行任何操作
                     pass
+                # eg: 'train-0'
                 guid = "%s-%s" % (set_type, sample_id)
                 text_a = ' '.join(words)
                 #label = [absa_label_vocab[tag] for tag in tags]
+                # gold_ts例如 ['O', 'O', 'S-NEG', 'O'] --> [(2, 2, 'NEG')]，整个词语的起始位置和情感，用于统计class_count
                 gold_ts = tag2ts(ts_tag_sequence=tags)
                 for (b, e, s) in gold_ts:
                     if s == 'POS':
@@ -166,9 +184,10 @@ class ABSAProcessor(DataProcessor):
                         class_count[1] += 1
                     if s == 'NEU':
                         class_count[2] += 1
+                #guid= 'train-0', text_a='Avoid this place !', label ['O', 'O', 'S-NEG', 'O']
                 examples.append(InputExample(guid=guid, text_a=text_a, text_b=None, label=tags))
                 sample_id += 1
-        print("%s class count: %s" % (set_type, class_count))
+        print("%s 类别统计数量: %s" % (set_type, class_count))
         return examples
 
 
@@ -194,15 +213,34 @@ def convert_examples_to_seq_features(examples, label_list, tokenizer,
                                      sep_token='[SEP]', pad_token=0, sequence_a_segment_id=0,
                                      sequence_b_segment_id=1, cls_token_segment_id=1, pad_token_segment_id=0,
                                      mask_padding_with_zero=True):
+    """
+    :param examples:
+    :param label_list:
+    :param tokenizer:
+    :param cls_token_at_end:是否把CLS Token放到最后，默认是放在开头，这种形式：CLS，x，x，x，SEP
+    :param pad_on_left: 在序列的左边进行padding还是右边
+    :param cls_token:  例如CLS
+    :param sep_token:  例如SEP
+    :param pad_token:
+    :param sequence_a_segment_id: 设置为0，第一个序列的segment_id,默认是用作预测下一句用的，NSP，这里没有用到
+    :param sequence_b_segment_id: 设置为1
+    :param cls_token_segment_id: CLS token的代表数字
+    :param pad_token_segment_id: PAD token的代表数字
+    :param mask_padding_with_zero: bool， 使用0作为mask，否则是1
+    :return:
+    """
     # feature extraction for sequence labeling
+    # label_map label到数字映射,例如{'O': 0, 'EQ': 1, 'B-POS': 2, 'I-POS': 3, 'E-POS': 4, 'S-POS': 5, 'B-NEG': 6, 'I-NEG': 7, 'E-NEG': 8, 'S-NEG': 9, 'B-NEU': 10, 'I-NEU': 11, 'E-NEU': 12, 'S-NEU': 13}
     label_map = {label: i for i, label in enumerate(label_list)}
     features = []
+    # max_seq_length统计下最长的序列长度
     max_seq_length = -1
     examples_tokenized = []
     for (ex_index, example) in enumerate(examples):
         tokens_a = []
         labels_a = []
         evaluate_label_ids = []
+        # 使用空格拆分句子到单词
         words = example.text_a.split(' ')
         wid, tid = 0, 0
         for word, label in zip(words, example.label):
@@ -222,7 +260,7 @@ def convert_examples_to_seq_features(examples, label_list, tokenizer,
         examples_tokenized.append((tokens_a, labels_a, evaluate_label_ids))
         if len(tokens_a) > max_seq_length:
             max_seq_length = len(tokens_a)
-    # count on the [CLS] and [SEP]
+    # 最长的序列+2，因为count on the [CLS] and [SEP]
     max_seq_length += 2
     #max_seq_length = 128
     for ex_index, (tokens_a, labels_a, evaluate_label_ids) in enumerate(examples_tokenized):
@@ -233,8 +271,10 @@ def convert_examples_to_seq_features(examples, label_list, tokenizer,
         #if len(tokens_a) > max_seq_length - 2:
         #    tokens_a = tokens_a[:(max_seq_length - 2)]
         #    labels_a = labels_a
+        #末尾添加SEP的token
         tokens = tokens_a + [sep_token]
         segment_ids = [sequence_a_segment_id] * len(tokens)
+        #加上最后个SEP的label，设为O
         labels = labels_a + ['O']
         if cls_token_at_end:
             # evaluate label ids not change
@@ -242,16 +282,18 @@ def convert_examples_to_seq_features(examples, label_list, tokenizer,
             segment_ids = segment_ids + [cls_token_segment_id]
             labels = labels + ['O']
         else:
-            # right shift 1 for evaluate label ids
             tokens = [cls_token] + tokens
             segment_ids = [cls_token_segment_id] + segment_ids
             labels = ['O'] + labels
+            # 所有数+1，评估时id，向右移动一位
             evaluate_label_ids += 1
+        #把字转换成id，例如[101, 2057, 1010, 2045, 2020, 2176, 1997, 2149, 1010, 3369, 2012, 11501, 1010, 1996, 2173, 2001, 4064, 1010, 1998, 1996, 3095, 6051, 2066, 2057, 2020, 16625, 2006, 2068, 1998, 2027, 2020, 2200, 12726, 1012, 102]
         input_ids = tokenizer.convert_tokens_to_ids(tokens)
+        #输入的mask，例如[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
         input_mask = [1 if mask_padding_with_zero else 0] * len(input_ids)
-        # Zero-pad up to the sequence length.
+        # padding到最大序列长度Zero-pad up to the sequence length.
         padding_length = max_seq_length - len(input_ids)
-        #print("Current labels:", labels)
+        #print("Current labels:", labels), labels标签字符转换成id， 例如[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
         label_ids = [label_map[label] for label in labels]
 
         # pad the input sequence and the mask sequence
@@ -264,19 +306,23 @@ def convert_examples_to_seq_features(examples, label_list, tokenizer,
             # right shift padding_length for evaluate_label_ids
             evaluate_label_ids += padding_length
         else:
-            # evaluate ids not change
+            #在序列的右边开始，例如最大序列长度是83： [101, 2057, 1010, 2045, 2020, 2176, 1997, 2149, 1010, 3369, 2012, 11501, 1010, 1996, 2173, 2001, 4064, 1010, 1998, 1996, 3095, 6051, 2066, 2057, 2020, 16625, 2006, 2068, 1998, 2027, 2020, 2200, 12726, 1012, 102, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+            #evaluate_label_ids要评估的id是不变的，我们不评估padding的那些id， padding evaluate ids not change
             input_ids = input_ids + ([pad_token] * padding_length)
+            # 增加mask的长度，padding的位置的mask数字要和input_mask的不一样，最终结果，例如[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
             input_mask = input_mask + ([0 if mask_padding_with_zero else 1] * padding_length)
+            #padding部分的segment id扩充
             segment_ids = segment_ids + ([pad_token_segment_id] * padding_length)
-            # pad sequence tag 'O'
+            #把padding部分的labels id都设为0，例如[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
             label_ids = label_ids + ([0] * padding_length)
+        #验证这些长度都达到了序列最大长度
         assert len(input_ids) == max_seq_length
         assert len(input_mask) == max_seq_length
         assert len(segment_ids) == max_seq_length
         assert len(label_ids) == max_seq_length
-
+        # 打印前5个样本
         if ex_index < 5:
-            logger.info("*** Example ***")
+            logger.info("*** 打印前5个样本示例 ***")
             logger.info("guid: %s" % (example.guid))
             logger.info("tokens: %s" % " ".join(
                     [str(x) for x in tokens]))
@@ -285,14 +331,14 @@ def convert_examples_to_seq_features(examples, label_list, tokenizer,
             logger.info("segment_ids: %s" % " ".join([str(x) for x in segment_ids]))
             logger.info("labels: %s " % ' '.join([str(x) for x in label_ids]))
             logger.info("evaluate label ids: %s" % evaluate_label_ids)
-
+        #把转换好的feature加入到features列表
         features.append(
             SeqInputFeatures(input_ids=input_ids,
                              input_mask=input_mask,
                              segment_ids=segment_ids,
                              label_ids=label_ids,
                              evaluate_label_ids=evaluate_label_ids))
-    print("maximal sequence length is", max_seq_length)
+    print("最大序列长度是: ", max_seq_length)
     return features
 
 
