@@ -18,22 +18,32 @@ MODEL_CLASSES = {
 
 
 def load_and_cache_examples(args, task, tokenizer):
-    # similar to that in main.py
+    """
+    类似main.py函数
+    :param args:
+    :param task: 要加载的task
+    :param tokenizer:  实例化好的tokenizer
+    :return:  dataset, all_evaluate_label_ids, total_words是所有的字
+    """
     processor = ABSAProcessor()
-    # Load data features from cache or dataset file
+    # 设定cached_features_file的名字
     cached_features_file = os.path.join(args.data_dir, 'cached_{}_{}_{}_{}'.format(
         'test',
         list(filter(None, args.model_name_or_path.split('/'))).pop(),
         str(args.max_seq_length),
         str(task)))
+    # 如果存在cached_features_file，直接加载
     if os.path.exists(cached_features_file):
         print("cached_features_file:", cached_features_file)
         features = torch.load(cached_features_file)
         examples = processor.get_test_examples(args.data_dir, args.tagging_schema)
     else:
-        #logger.info("Creating features from dataset file at %s", args.data_dir)
+        # 创建cached_features_file
+        # label_list是所有的labels
         label_list = processor.get_labels(args.tagging_schema)
+        # test.txt文件的样本
         examples = processor.get_test_examples(args.data_dir, args.tagging_schema)
+        # 文本样本通过tokenizer转换成标签
         features = convert_examples_to_seq_features(examples=examples, label_list=label_list, tokenizer=tokenizer,
                                                     cls_token_at_end=bool(args.model_type in ['xlnet']),
                                                     cls_token=tokenizer.cls_token,
@@ -41,19 +51,21 @@ def load_and_cache_examples(args, task, tokenizer):
                                                     cls_token_segment_id=2 if args.model_type in ['xlnet'] else 0,
                                                     pad_on_left=bool(args.model_type in ['xlnet']),
                                                     pad_token_segment_id=4 if args.model_type in ['xlnet'] else 0)
+        # 把features cache到本地一份
         torch.save(features, cached_features_file)
+    # 保存所有的字到total_words
     total_words = []
     for input_example in examples:
         text = input_example.text_a
         total_words.append(text.split(' '))
 
-    # Convert to Tensors and build dataset
+    #转换成tensor
     all_input_ids = torch.tensor([f.input_ids for f in features], dtype=torch.long)
     all_input_mask = torch.tensor([f.input_mask for f in features], dtype=torch.long)
     all_segment_ids = torch.tensor([f.segment_ids for f in features], dtype=torch.long)
-
+    # label_id也转换成tensor
     all_label_ids = torch.tensor([f.label_ids for f in features], dtype=torch.long)
-    # used in evaluation
+    #所有要评估的label的id的列表
     all_evaluate_label_ids = [f.evaluate_label_ids for f in features]
     dataset = TensorDataset(all_input_ids, all_input_mask, all_segment_ids, all_label_ids)
     return dataset, all_evaluate_label_ids, total_words
@@ -96,17 +108,25 @@ def main():
     args.model_type = args.model_type.lower()
     _, model_class, tokenizer_class = MODEL_CLASSES[args.model_type]
 
-    # load the trained model (including the fine-tuned GPT/BERT/XLNET)
-    print("Load checkpoint %s/%s..." % (args.ckpt, WEIGHTS_NAME))
+    #加载训练好的模型 (including the fine-tuned GPT/BERT/XLNET)
+    print("开始加载checkpoint %s/%s..." % (args.ckpt, WEIGHTS_NAME))
     model = model_class.from_pretrained(args.ckpt)
-    # follow the property of tokenizer in the loaded model, e.g., do_lower_case=True
+    # 遵循加载的模型中的tokenizer的属性, e.g., do_lower_case=True
     tokenizer = tokenizer_class.from_pretrained(args.absa_home)
     model.to(args.device)
+    #设置模型开始评估
     model.eval()
     predict(args, model, tokenizer)
 
 
 def predict(args, model, tokenizer):
+    """
+    预测
+    :param args:
+    :param model: 已加载好的模型
+    :param tokenizer:  已加载好的tokenizer
+    :return:
+    """
     dataset, evaluate_label_ids, total_words = load_and_cache_examples(args, args.task_name, tokenizer)
     sampler = SequentialSampler(dataset)
     # process the incoming data one by one
@@ -115,6 +135,7 @@ def predict(args, model, tokenizer):
 
     total_preds, gold_labels = None, None
     idx = 0
+    # absa_label_vocab 是标签对应数字的映射
     if args.tagging_schema == 'BIEOS':
         absa_label_vocab = {'O': 0, 'EQ': 1, 'B-POS': 2, 'I-POS': 3, 'E-POS': 4, 'S-POS': 5,
                         'B-NEG': 6, 'I-NEG': 7, 'E-NEG': 8, 'S-NEG': 9,
@@ -126,19 +147,22 @@ def predict(args, model, tokenizer):
         absa_label_vocab = {'O': 0, 'EQ': 1, 'T-POS': 2, 'T-NEG': 3, 'T-NEU': 4}
     else:
         raise Exception("Invalid tagging schema %s..." % args.tagging_schema)
+    # absa_id2tag是id到标签的映射
     absa_id2tag = {}
     for k in absa_label_vocab:
         v = absa_label_vocab[k]
         absa_id2tag[v] = k
-
-    for batch in tqdm(dataloader, desc="Evaluating"):
+    #显示进度
+    for batch in tqdm(dataloader, desc="评估"):
         batch = tuple(t.to(args.device) for t in batch)
         with torch.no_grad():
+            # 其实不用传递labels，预测阶段，这里计算了损失，也没有用到
             inputs = {'input_ids': batch[0],
                       'attention_mask': batch[1],
                       'token_type_ids': batch[2] if args.model_type in ['bert', 'xlnet'] else None,
                       # XLM don't use segment_ids
                       'labels': batch[3]}
+            # 模型的输出[loss, logits,...], 如果不传labels，那么第一个就是logits, 即logits = outputs[0]
             outputs = model(**inputs)
             # logits: (1, seq_len, label_size)
             logits = outputs[1]
@@ -146,8 +170,10 @@ def predict(args, model, tokenizer):
             if model.tagger_config.absa_type != 'crf':
                 preds = np.argmax(logits.detach().cpu().numpy(), axis=-1)
             else:
+                #如果使用的是crf，那么使用viterbi算法推理预测
                 mask = batch[1]
                 preds = model.tagger.viterbi_tags(logits=logits, mask=mask)
+            #
             label_indices = evaluate_label_ids[idx]
             words = total_words[idx]
             pred_labels = preds[0][label_indices]

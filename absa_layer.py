@@ -48,10 +48,10 @@ class GRU(nn.Module):
     # customized GRU with layer normalization
     def __init__(self, input_size, hidden_size, bidirectional=True):
         """
-
-        :param input_size:
-        :param hidden_size:
-        :param bidirectional:
+        使用GRU模型
+        :param input_size: 输入层尺寸
+        :param hidden_size: 隐藏层尺寸
+        :param bidirectional: 是否是双向gru
         """
         super(GRU, self).__init__()
         self.input_size = input_size
@@ -416,6 +416,7 @@ class BertABSATagger(BertPreTrainedModel):
             # 倒数第二层的hidden size， 如果是linear
             penultimate_hidden_size = bert_config.hidden_size
         else:
+            #设置dropout
             self.tagger_dropout = nn.Dropout(self.tagger_config.hidden_dropout_prob)
             if self.tagger_config.absa_type == 'lstm':
                 self.tagger = LSTM(input_size=bert_config.hidden_size,
