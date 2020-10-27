@@ -71,48 +71,67 @@ class GRU(nn.Module):
 
     def forward(self, x):
         """
-
-        :param x: input tensor, shape: (batch_size, seq_len, input_size)
-        :return:
+        GRU 模型
+        :param x: input tensor, shape: (batch_size, seq_len, input_size) ,例如 torch.Size([16, 83, 768])
+        :return: gru模型的输出
         """
         def recurrence(xt, htm1):
             """
-
-            :param xt: current input
-            :param htm1: previous hidden state
-            :return:
+            :param xt: current input, [batch_size, demision_size]， 每个时间步的输入
+            :param htm1: 上一时刻的隐藏状态
+            :return: 当前时刻的输出的隐藏状态
             """
+            # gates_rz [batch_size,demision_size]
             gates_rz = torch.sigmoid(self.LNx1(self.Wxrz(xt)) + self.LNh1(self.Whrz(htm1)))
-            rt, zt = gates_rz.chunk(2, 1)
+            #因为做的一次计算，现拆出来rt重置门和zt更新门, rt [batch_size, demision_size/2], zt [batch_size, demision_size/2]
+            rt, zt = gates_rz.chunk(2, 1)  #维度1上拆出2份
+            # nt 是ht_hat [batch_size, demision_size/2]
             nt = torch.tanh(self.LNx2(self.Wxn(xt))+rt*self.LNh2(self.Whn(htm1)))
+            # 最终的ht [bath_size, demision_size/2]
             ht = (1.0-zt) * nt + zt * htm1
             return ht
-
+        # 时间步，x.size(1)是序列长度
         steps = range(x.size(1))
         bs = x.size(0)
+        #第一个时间步，用0初始化，初始化h0为0, [batch_size,hidden_size]
         hidden = self.init_hidden(bs)
-        # shape: (seq_len, bsz, input_size)
+        # 调换0和1的维度， 变成(seq_len, batch_size, input_size)
         input = x.transpose(0, 1)
         output = []
+        #对每个时间步进行循环,t=0,1,2,3,....., input[t]是第t个时间步的输入，hidden是上一个的输出，作为下一个gru的输入
         for t in steps:
+            # input[t]的维度是 [batch_size, input_size]，作为每个step的输入
             hidden = recurrence(input[t], hidden)
             output.append(hidden)
-        # shape: (bsz, seq_len, input_size)
+        # 把每个时间步输出的列表output，拼接回(seq_len, batch_size,demision_size)，然后转换成(batch_size, seq_len, demision_size)
         output = torch.stack(output, 0).transpose(0, 1)
-
+        #如果是双向rnn, 反向进行一遍GRU模型
         if self.bidirectional:
             output_b = []
+            #初始化h0
             hidden_b = self.init_hidden(bs)
+            #反向每个时间步
             for t in steps[::-1]:
                 hidden_b = recurrence(input[t], hidden_b)
                 output_b.append(hidden_b)
+            #输出结果还是要正回来，按照正常序列
             output_b = output_b[::-1]
+            # output_b (batch_size, seq_len, demision_size)
             output_b = torch.stack(output_b, 0).transpose(0, 1)
+            # 把正向和反向的拼接在一起 (batch_size, seq_len, demision_size) --> (batch_size, seq_len, demision_size*2), demision_size*2就是input_size
             output = torch.cat([output, output_b], dim=-1)
         return output, None
 
     def init_hidden(self, bs):
-        h_0 = torch.zeros(bs, self.hidden_size).cuda()
+        """
+        初始化h0，这里如果是双向RNN，那么self.hidden_size是input的一半
+        :param bs:
+        :return:
+        """
+        if torch.cuda.is_available():
+            h_0 = torch.zeros(bs, self.hidden_size).cuda()
+        else:
+            h_0 = torch.zeros(bs, self.hidden_size)
         return h_0
 
 
@@ -472,7 +491,7 @@ class BertABSATagger(BertPreTrainedModel):
                 # customized LSTM
                 classifier_input, _ = self.tagger(tagger_input)
             elif self.tagger_config.absa_type == 'gru':
-                # customized GRU
+                # 如果是gru，把bert的输出，输入到gru模型中，作为classifier_input的输入
                 classifier_input, _ = self.tagger(tagger_input)
             elif self.tagger_config.absa_type == 'san' or self.tagger_config.absa_type == 'tfm':
                 # vanilla self-attention networks or transformer
