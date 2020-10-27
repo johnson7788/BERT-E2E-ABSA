@@ -60,23 +60,25 @@ def load_and_cache_examples(args, task, tokenizer):
 
 
 def init_args():
+    """
+    参数
+    :return:
+    """
     parser = argparse.ArgumentParser()
-    parser.add_argument("--absa_home", type=str, required=True, help="Home directory of the trained ABSA model")
-    parser.add_argument("--ckpt", type=str, required=True, help="Directory of model checkpoint for evaluation")
+    parser.add_argument("--absa_home", type=str, required=True, help="经过训练的ABSA模型的主目录")
+    parser.add_argument("--ckpt", type=str, required=True, help="用于评估的模型checkpoint目录")
     parser.add_argument("--data_dir", type=str, required=True,
-                        help="The incoming data dir. Should contain the files of test/unseen data")
+                        help="传入数据目录。应该包含测试/未见过的数据文件")
     parser.add_argument("--task_name", type=str, required=True, help="task name")
     parser.add_argument("--model_type", default=None, type=str, required=True,
-                        help="Model type selected in the list: " + ", ".join(MODEL_CLASSES.keys()))
+                        help="在列表中选择的模型类型: " + ", ".join(MODEL_CLASSES.keys()))
     parser.add_argument("--model_name_or_path", default=None, type=str, required=True,
-                        help="Path to pre-trained model or shortcut name selected in the list: " + ", ".join(ALL_MODELS))
+                        help="列表中选择的预训练模型或shortcut名称的路径：" + ", ".join(ALL_MODELS))
     parser.add_argument("--cache_dir", default="", type=str,
-                        help="Where do you want to store the pre-trained models downloaded from s3")
+                        help="您想在哪里存储从s3下载的预训练模型")
     parser.add_argument("--max_seq_length", default=128, type=int,
-                        help="The maximum total input sequence length after tokenization. Sequences longer "
-                        "than this will be truncated, sequences shorter will be padded.")
-    parser.add_argument('--tagging_schema', type=str, default='BIEOS', help="Tagging schema, should be kept same with "
-                                                                            "that of ckpt")
+                        help="分词后的最大总输入序列长度。序列比这更长将被截断，较短的序列将填充。")
+    parser.add_argument('--tagging_schema', type=str, default='BIEOS', help="Tagging schema, 需要和保存的模型ckpt或者bin中的一致")
 
     args = parser.parse_args()
 

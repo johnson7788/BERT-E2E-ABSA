@@ -74,7 +74,7 @@ python main.py --model_type bert --absa_type linear --tfm_mode finetune --fix_tf
 ```
 评估
 ```buildoutcfg
-python work.py --absa_home ./bert-linear-rest15-finetune --ckpt ./bert-linear-rest15-finetune/checkpoint-1500 --model_type bert --data_dir ./data/rest15 --task_name laptop14 --model_name_or_path bert-base-uncased --cache_dir ./cache --max_seq_length 128 --tagging_schema BIEOS
+python work.py --absa_home ./bert-linear-rest15-finetune --ckpt ./bert-linear-rest15-finetune/checkpoint-1500 --model_type bert --data_dir ./data/rest15 --task_name laptop14 --model_name_or_path bert-base-uncased --cache_dir ./model_cache --max_seq_length 128 --tagging_schema BIEOS
 
 ```
 

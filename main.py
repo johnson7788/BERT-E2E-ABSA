@@ -107,7 +107,7 @@ def init_args():
                         help="覆盖缓存的训练和评估集")
     parser.add_argument('--seed', type=int, default=42,
                         help="随机种子进行初始化")
-    parser.add_argument('--tagging_schema', type=str, default='BIEOS')
+    parser.add_argument('--tagging_schema', type=str, default='BIEOS',help="序列标签结构")
 
     parser.add_argument("--overfit", type=int, default=0, help="是否评估过拟合")
 

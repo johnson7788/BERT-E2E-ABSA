@@ -7,6 +7,6 @@ CUDA_VISIBLE_DEVICES=0 python work.py --absa_home ${ABSA_HOME} \
                       --data_dir ./data/${TASK_NAME} \
                       --task_name ${TASK_NAME} \
                       --model_name_or_path bert-base-uncased \
-                      --cache_dir ./cache \
+                      --cache_dir ./model_cache \
                       --max_seq_length 128 \
                       --tagging_schema BIEOS
