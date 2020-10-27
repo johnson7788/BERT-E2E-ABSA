@@ -480,6 +480,14 @@ def match_ts(gold_ts_sequence, pred_ts_sequence):
 
 
 def compute_metrics_absa(preds, labels, all_evaluate_label_ids, tagging_schema):
+    """
+    计算abas模型的metric
+    :param preds:  预测值 [all_senetences, sequence_length]， 例如[685,77] 代表685个句子，每个句子77长度
+    :param labels:  真实值 [all_senetences, sequence_length]
+    :param all_evaluate_label_ids: 列表，长度等于all_senetences，每个item是每个句子中真实的单词长度的列表，代表需要评估的单词
+    :param tagging_schema: 序列标注的schema，默认是BIEOS
+    :return:
+    """
     if tagging_schema == 'BIEOS':
         absa_label_vocab = {'O': 0, 'EQ': 1, 'B-POS': 2, 'I-POS': 3, 'E-POS': 4, 'S-POS': 5,
                         'B-NEG': 6, 'I-NEG': 7, 'E-NEG': 8, 'S-NEG': 9,
@@ -495,22 +503,28 @@ def compute_metrics_absa(preds, labels, all_evaluate_label_ids, tagging_schema):
     for k in absa_label_vocab:
         v = absa_label_vocab[k]
         absa_id2tag[v] = k
-    # number of true postive, gold standard, predicted targeted sentiment
+    # 初始化 true postive的数量，gold standard，预期的目标情感
     n_tp_ts, n_gold_ts, n_pred_ts = np.zeros(3), np.zeros(3), np.zeros(3)
-    # precision, recall and f1 for aspect-based sentiment analysis
+    # 初始化 precision, recall and f1 for aspect-based sentiment analysis
     ts_precision, ts_recall, ts_f1 = np.zeros(3), np.zeros(3), np.zeros(3)
+    # 样本总数
     n_samples = len(all_evaluate_label_ids)
     pred_y, gold_y = [], []
     class_count = np.zeros(3)
+    #对每个样本进行循环
     for i in range(n_samples):
+        #第i个样本的真实的单词数
         evaluate_label_ids = all_evaluate_label_ids[i]
+        # 找出单词的预测的标签,
         pred_labels = preds[i][evaluate_label_ids]
+        # 真实的单词的标签, 例如 [0 2 3 4]
         gold_labels = labels[i][evaluate_label_ids]
+        # 确认长度是一样的
         assert len(pred_labels) == len(gold_labels)
-        # here, no EQ tag will be induced
+        # 把id转换成tag
         pred_tags = [absa_id2tag[label] for label in pred_labels]
         gold_tags = [absa_id2tag[label] for label in gold_labels]
-
+        #
         if tagging_schema == 'OT':
             gold_tags = ot2bieos_ts(gold_tags)
             pred_tags = ot2bieos_ts(pred_tags)
@@ -520,8 +534,9 @@ def compute_metrics_absa(preds, labels, all_evaluate_label_ids, tagging_schema):
         else:
             # current tagging schema is BIEOS, do nothing
             pass
+        #获取预测和真实的对应的单词和感情
         g_ts_sequence, p_ts_sequence = tag2ts(ts_tag_sequence=gold_tags), tag2ts(ts_tag_sequence=pred_tags)
-
+        #对比
         hit_ts_count, gold_ts_count, pred_ts_count = match_ts(gold_ts_sequence=g_ts_sequence,
                                                               pred_ts_sequence=p_ts_sequence)
         n_tp_ts += hit_ts_count

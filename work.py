@@ -23,10 +23,10 @@ def load_and_cache_examples(args, task, tokenizer):
     :param args:
     :param task: 要加载的task
     :param tokenizer:  实例化好的tokenizer
-    :return:  dataset, all_evaluate_label_ids, total_words是所有的字
+    :return:  dataset, all_evaluate_label_ids, total_words句子的列表
     """
     processor = ABSAProcessor()
-    # 设定cached_features_file的名字
+    # 设定cached_features_file的名字， 例如'./data/rest15/cached_test_bert-base-uncased_128_rest15'
     cached_features_file = os.path.join(args.data_dir, 'cached_{}_{}_{}_{}'.format(
         'test',
         list(filter(None, args.model_name_or_path.split('/'))).pop(),
@@ -113,6 +113,9 @@ def main():
     model = model_class.from_pretrained(args.ckpt)
     # 遵循加载的模型中的tokenizer的属性, e.g., do_lower_case=True
     tokenizer = tokenizer_class.from_pretrained(args.absa_home)
+    if tokenizer is None:
+        msg = "请确认tokenizer 文件存在，应该包括 added_tokens.json special_tokens_map.json tokenizer_config.json   vocab.txt"
+        raise Exception(msg)
     model.to(args.device)
     #设置模型开始评估
     model.eval()
@@ -129,7 +132,7 @@ def predict(args, model, tokenizer):
     """
     dataset, evaluate_label_ids, total_words = load_and_cache_examples(args, args.task_name, tokenizer)
     sampler = SequentialSampler(dataset)
-    # process the incoming data one by one
+    # process the incoming data one by one, batch_size设为1，所以一句话一句话的预测
     dataloader = DataLoader(dataset, sampler=sampler, batch_size=1)
     print("***** Running prediction *****")
 
@@ -164,20 +167,24 @@ def predict(args, model, tokenizer):
                       'labels': batch[3]}
             # 模型的输出[loss, logits,...], 如果不传labels，那么第一个就是logits, 即logits = outputs[0]
             outputs = model(**inputs)
-            # logits: (1, seq_len, label_size)
+            # logits的形状: (1, seq_len, num_class)
             logits = outputs[1]
-            # preds: (1, seq_len)
+            # 找出概率最大的作为预测值: 形状是，(1, seq_len)
             if model.tagger_config.absa_type != 'crf':
                 preds = np.argmax(logits.detach().cpu().numpy(), axis=-1)
             else:
                 #如果使用的是crf，那么使用viterbi算法推理预测
                 mask = batch[1]
                 preds = model.tagger.viterbi_tags(logits=logits, mask=mask)
-            #
+            # 要进行评估的id，例如idx=0，表示对比第一句话的预测结果
             label_indices = evaluate_label_ids[idx]
+            # 第一句话的句子的单词 ,例如 ['Love', 'Al', 'Di', 'La']
             words = total_words[idx]
+            # 比对前label_indices几个需要对比的字，不用对比padding的结果
             pred_labels = preds[0][label_indices]
+            # 判读预测长度和words长度相等
             assert len(words) == len(pred_labels)
+            # id 转换成标签, 例如 ['O', 'O', 'O', 'O']
             pred_tags = [absa_id2tag[label] for label in pred_labels]
 
             if args.tagging_schema == 'OT':
@@ -187,24 +194,30 @@ def predict(args, model, tokenizer):
             else:
                 # current tagging schema is BIEOS, do nothing
                 pass
+            # 把预测到的结果也提取对应的单词和情感
             p_ts_sequence = tag2ts(ts_tag_sequence=pred_tags)
+            #输出结果汇总
             output_ts = []
             for t in p_ts_sequence:
+                #beg，end是aspect的起始位置，sentiment是情感
                 beg, end, sentiment = t
+                #这个aspect词语是
                 aspect = words[beg:end+1]
                 output_ts.append('%s: %s' % (aspect, sentiment))
-            print("Input: %s, output: %s" % (' '.join(words), '\t'.join(output_ts)))
-            # for evaluation
+            print("\n输入的句子是: %s, 预测的结果是: %s" % (' '.join(words), '\t'.join(output_ts)))
+            # 下面是用于评估模型结果了，上面的是预测的结果
             if total_preds is None:
                 total_preds = preds
             else:
                 total_preds = np.append(total_preds, preds, axis=0)
+            #提取test.txt中的labels作为gold_labels
             if inputs['labels'] is not None:
                 # for the unseen data, there is no ``labels''
                 if gold_labels is None:
                     gold_labels = inputs['labels'].detach().cpu().numpy()
                 else:
                     gold_labels = np.append(gold_labels, inputs['labels'].detach().cpu().numpy(), axis=0)
+        # 下一句话
         idx += 1
     if gold_labels is not None:
         result = compute_metrics_absa(preds=total_preds, labels=gold_labels, all_evaluate_label_ids=evaluate_label_ids,
