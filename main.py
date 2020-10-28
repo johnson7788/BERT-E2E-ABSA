@@ -251,7 +251,6 @@ def evaluate(args, model, tokenizer, mode, prefix=""):
     :param prefix:
     :return:
     """
-    # Loop to handle MNLI double evaluation (matched, mis-matched)
     eval_task_names = (args.task_name,)
     eval_outputs_dirs = (args.output_dir,)
 
@@ -449,6 +448,7 @@ def main():
     if args.do_train:
         train_dataset, train_evaluate_label_ids = load_and_cache_examples(args, args.task_name, tokenizer, mode='train')
         global_step, tr_loss = train(args, train_dataset, model, tokenizer)
+        logger.info("训练完成")
 
     if args.do_train and (args.local_rank == -1 or dist.get_rank() == 0):
         #创建输出文件夹，保存模型
@@ -467,7 +467,7 @@ def main():
         model = model_class.from_pretrained(args.output_dir)
         tokenizer = tokenizer_class.from_pretrained(args.output_dir)
         model.to(args.device)
-    print("训练完成")
+        logger.info("训练完成")
 
     if args.do_eval:
         #验证阶段
