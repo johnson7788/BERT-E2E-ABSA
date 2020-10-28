@@ -355,7 +355,7 @@ def load_and_cache_examples(args, task, tokenizer, mode='train'):
             examples = processor.get_test_examples(args.data_dir, args.tagging_schema)
         else:
             raise Exception("Invalid data mode %s..." % mode)
-        #
+        # 开始使用examples制作features
         features = convert_examples_to_seq_features(examples=examples, label_list=label_list, tokenizer=tokenizer,
                                                     cls_token_at_end=bool(args.model_type in ['xlnet']),
                                                     cls_token=tokenizer.cls_token,

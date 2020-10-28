@@ -250,7 +250,8 @@ class CosmeticsProcessor(DataProcessor):
                 for tag_item in tag_string.split(' '):
                     eles = tag_item.split('=')
                     if len(eles) == 1:
-                        raise Exception("无效样本 %s..." % tag_string)
+                        #对于是空格的地方，过滤掉
+                        continue
                     elif len(eles) == 2:
                         word, tag = eles
                     else:
@@ -259,14 +260,6 @@ class CosmeticsProcessor(DataProcessor):
                         tag = eles[-1]
                     words.append(word)
                     tags.append(tag)
-                # tagging方式从ot转换成BIEOS
-                if tagging_schema == 'BIEOS':
-                    tags = ot2bieos_ts(tags)
-                elif tagging_schema == 'BIO':
-                    tags = ot2bio_ts(tags)
-                else:
-                    # 原始标签遵循OT标签架构，不执行任何操作
-                    pass
                 # eg: 'train-0'
                 guid = "%s-%s" % (set_type, sample_id)
                 text_a = ' '.join(words)
@@ -335,10 +328,11 @@ def convert_examples_to_seq_features(examples, label_list, tokenizer,
         tokens_a = []
         labels_a = []
         evaluate_label_ids = []
-        # 使用空格拆分句子到单词
+        # 使用空格拆分句子到单词, 计算要进行评估的单词的位置信息evaluate_label_ids
         words = example.text_a.split(' ')
         wid, tid = 0, 0
         for word, label in zip(words, example.label):
+            # 拆分成subwords，中文就没有必要了
             subwords = tokenizer.tokenize(word)
             tokens_a.extend(subwords)
             if label != 'O':
@@ -346,6 +340,7 @@ def convert_examples_to_seq_features(examples, label_list, tokenizer,
             else:
                 labels_a.extend(['O'] * len(subwords))
             evaluate_label_ids.append(tid)
+            # 拆分成subwords，拆分的话，单词会增多
             wid += 1
             # move the token pointer
             tid += len(subwords)
