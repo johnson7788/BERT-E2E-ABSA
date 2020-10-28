@@ -330,22 +330,24 @@ def convert_examples_to_seq_features(examples, label_list, tokenizer,
         evaluate_label_ids = []
         # 使用空格拆分句子到单词, 计算要进行评估的单词的位置信息evaluate_label_ids
         words = example.text_a.split(' ')
-        wid, tid = 0, 0
-        for word, label in zip(words, example.label):
-            # 拆分成subwords，中文就没有必要了
-            subwords = tokenizer.tokenize(word)
-            tokens_a.extend(subwords)
-            if label != 'O':
-                labels_a.extend([label] + ['EQ'] * (len(subwords) - 1))
-            else:
-                labels_a.extend(['O'] * len(subwords))
-            evaluate_label_ids.append(tid)
-            # 拆分成subwords，拆分的话，单词会增多
-            wid += 1
-            # move the token pointer
-            tid += len(subwords)
+        tokens_a = words
+        labels_a = example.label
+        # wid, tid = 0, 0
+        # for word, label in zip(words, example.label):
+        #     # 拆分成subwords，中文就没有必要了
+        #     subwords = tokenizer.tokenize(word)
+        #     tokens_a.extend(subwords)
+        #     if label != 'O':
+        #         labels_a.extend([label] + ['EQ'] * (len(subwords) - 1))
+        #     else:
+        #         labels_a.extend(['O'] * len(subwords))
+        #     evaluate_label_ids.append(tid)
+        #     # 拆分成subwords，拆分的话，单词会增多
+        #     wid += 1
+        #     # move the token pointer
+        #     tid += len(subwords)
         # print(evaluate_label_ids)
-        assert tid == len(tokens_a)
+        # assert tid == len(tokens_a)
         evaluate_label_ids = np.array(evaluate_label_ids, dtype=np.int32)
         examples_tokenized.append((tokens_a, labels_a, evaluate_label_ids))
         if len(tokens_a) > max_seq_length:
