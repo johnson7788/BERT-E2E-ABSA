@@ -9,6 +9,7 @@ data/rest15/cached_train*
 runs
 utils
 data/cosmetics
+__pycache__
 
 # Log file
 *.log
