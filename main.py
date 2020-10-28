@@ -415,6 +415,7 @@ def main():
     if args.task_name not in processors:
         raise ValueError("Task not found: %s" % args.task_name)
     processor = processors[args.task_name]()
+    # output_mode 是 classification，表示分类
     args.output_mode = output_modes[args.task_name]
     label_list = processor.get_labels(args.tagging_schema)
     num_labels = len(label_list)

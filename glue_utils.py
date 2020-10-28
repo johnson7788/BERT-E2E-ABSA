@@ -29,10 +29,12 @@ logger = logging.getLogger(__name__)
 
 SMALL_POSITIVE_CONST = 1e-4
 
+
 class InputExample(object):
     """A single training/test example for simple sequence classification.
     用于简单序列分类的单个训练/测试样本。
     """
+
     def __init__(self, guid, text_a, text_b=None, label=None):
         """构建 a InputExample.
 
@@ -60,6 +62,7 @@ class InputFeatures(object):
 
 class SeqInputFeatures(object):
     """ABSA任务的一组数据特征"""
+
     def __init__(self, input_ids, input_mask, segment_ids, label_ids, evaluate_label_ids):
         self.input_ids = input_ids
         self.input_mask = input_mask
@@ -103,6 +106,7 @@ class DataProcessor(object):
 
 class ABSAProcessor(DataProcessor):
     """Processor for the ABSA datasets"""
+
     def get_train_examples(self, data_dir, tagging_schema):
         return self._create_examples(data_dir=data_dir, set_type='train', tagging_schema=tagging_schema)
 
@@ -124,8 +128,8 @@ class ABSAProcessor(DataProcessor):
             return ['O', 'EQ', 'B-POS', 'I-POS', 'B-NEG', 'I-NEG', 'B-NEU', 'I-NEU']
         elif tagging_schema == 'BIEOS':
             return ['O', 'EQ', 'B-POS', 'I-POS', 'E-POS', 'S-POS',
-            'B-NEG', 'I-NEG', 'E-NEG', 'S-NEG',
-            'B-NEU', 'I-NEU', 'E-NEU', 'S-NEU']
+                    'B-NEG', 'I-NEG', 'E-NEG', 'S-NEG',
+                    'B-NEU', 'I-NEU', 'E-NEU', 'S-NEU']
         else:
             raise Exception("Invalid tagging schema %s..." % tagging_schema)
 
@@ -137,19 +141,19 @@ class ABSAProcessor(DataProcessor):
         :return: 这个文件的所有行组成的examples，[InputExample(guid,label,text_a,text_b),...]
         """
         examples = []
-        #原文件路径
+        # 原文件路径
         file = os.path.join(data_dir, "%s.txt" % set_type)
         # class_count [0. 0. 0.], 存储统计所有的类别数量，【POS，NEG，NEU】-->【积极的标签总数，消极的标签总数，中性的标签总数】
         class_count = np.zeros(3)
         with open(file, 'r', encoding='UTF-8') as fp:
-            #sample_id样本计数，共计多少行
+            # sample_id样本计数，共计多少行
             sample_id = 0
             for line in fp:
-                #用####分割出标签和原始文本
+                # 用####分割出标签和原始文本
                 sent_string, tag_string = line.strip().split('####')
-                #存储每个单词
+                # 存储每个单词
                 words = []
-                #存储每个单词对应的标签
+                # 存储每个单词对应的标签
                 tags = []
                 for tag_item in tag_string.split(' '):
                     eles = tag_item.split('=')
@@ -158,12 +162,12 @@ class ABSAProcessor(DataProcessor):
                     elif len(eles) == 2:
                         word, tag = eles
                     else:
-                        #如果存在多个=号的情况，取最后一个=号后面的最为标签，其它作为单词
+                        # 如果存在多个=号的情况，取最后一个=号后面的最为标签，其它作为单词
                         word = ''.join((len(eles) - 2) * ['='])
                         tag = eles[-1]
                     words.append(word)
                     tags.append(tag)
-                #tagging方式从ot转换成BIEOS
+                # tagging方式从ot转换成BIEOS
                 if tagging_schema == 'BIEOS':
                     tags = ot2bieos_ts(tags)
                 elif tagging_schema == 'BIO':
@@ -174,7 +178,7 @@ class ABSAProcessor(DataProcessor):
                 # eg: 'train-0'
                 guid = "%s-%s" % (set_type, sample_id)
                 text_a = ' '.join(words)
-                #label = [absa_label_vocab[tag] for tag in tags]
+                # label = [absa_label_vocab[tag] for tag in tags]
                 # gold_ts例如 ['O', 'O', 'S-NEG', 'O'] --> [(2, 2, 'NEG')]，整个词语的起始位置和情感，用于统计class_count
                 gold_ts = tag2ts(ts_tag_sequence=tags)
                 for (b, e, s) in gold_ts:
@@ -184,12 +188,103 @@ class ABSAProcessor(DataProcessor):
                         class_count[1] += 1
                     if s == 'NEU':
                         class_count[2] += 1
-                #guid= 'train-0', text_a='Avoid this place !', label ['O', 'O', 'S-NEG', 'O']
+                # guid= 'train-0', text_a='Avoid this place !', label ['O', 'O', 'S-NEG', 'O']
                 examples.append(InputExample(guid=guid, text_a=text_a, text_b=None, label=tags))
                 sample_id += 1
         print("%s 类别统计数量: %s" % (set_type, class_count))
         return examples
 
+class CosmeticsProcessor(DataProcessor):
+    """
+    处理自定定义的数据
+    """
+
+    def get_train_examples(self, data_dir, tagging_schema):
+        return self._create_examples(data_dir=data_dir, set_type='train', tagging_schema=tagging_schema)
+
+    def get_dev_examples(self, data_dir, tagging_schema):
+        return self._create_examples(data_dir=data_dir, set_type='dev', tagging_schema=tagging_schema)
+
+    def get_test_examples(self, data_dir, tagging_schema):
+        return self._create_examples(data_dir=data_dir, set_type='test', tagging_schema=tagging_schema)
+
+    def get_labels(self, tagging_schema):
+        """
+        根据不同的tagging方式，返回不同的形式的所有labels集合
+        :param tagging_schema:
+        :return:
+        """
+        if tagging_schema == 'OT':
+            return []
+        elif tagging_schema == 'BIO':
+            return ['O', 'EQ', 'B-POS', 'I-POS', 'B-NEG', 'I-NEG', 'B-NEU', 'I-NEU']
+        elif tagging_schema == 'BIEOS':
+            return ['O', 'EQ', 'B-POS', 'I-POS', 'E-POS', 'S-POS',
+                    'B-NEG', 'I-NEG', 'E-NEG', 'S-NEG',
+                    'B-NEU', 'I-NEU', 'E-NEU', 'S-NEU']
+        else:
+            raise Exception("Invalid tagging schema %s..." % tagging_schema)
+
+    def _create_examples(self, data_dir, set_type, tagging_schema):
+        """
+        :param data_dir:  例如 './data/rest15'
+        :param set_type: 例如是train，或test或dev，组成train.txt
+        :param tagging_schema: 例如'BIEOS'
+        :return: 这个文件的所有行组成的examples，[InputExample(guid,label,text_a,text_b),...]
+        """
+        examples = []
+        # 原文件路径
+        file = os.path.join(data_dir, "%s.txt" % set_type)
+        # class_count [0. 0. 0.], 存储统计所有的类别数量，【POS，NEG，NEU】-->【积极的标签总数，消极的标签总数，中性的标签总数】
+        class_count = np.zeros(3)
+        with open(file, 'r', encoding='UTF-8') as fp:
+            # sample_id样本计数，共计多少行
+            sample_id = 0
+            for line in fp:
+                # 用####分割出标签和原始文本
+                sent_string, tag_string = line.strip().split('####')
+                # 存储每个单词
+                words = []
+                # 存储每个单词对应的标签
+                tags = []
+                for tag_item in tag_string.split(' '):
+                    eles = tag_item.split('=')
+                    if len(eles) == 1:
+                        raise Exception("无效样本 %s..." % tag_string)
+                    elif len(eles) == 2:
+                        word, tag = eles
+                    else:
+                        # 如果存在多个=号的情况，取最后一个=号后面的最为标签，其它作为单词
+                        word = ''.join((len(eles) - 2) * ['='])
+                        tag = eles[-1]
+                    words.append(word)
+                    tags.append(tag)
+                # tagging方式从ot转换成BIEOS
+                if tagging_schema == 'BIEOS':
+                    tags = ot2bieos_ts(tags)
+                elif tagging_schema == 'BIO':
+                    tags = ot2bio_ts(tags)
+                else:
+                    # 原始标签遵循OT标签架构，不执行任何操作
+                    pass
+                # eg: 'train-0'
+                guid = "%s-%s" % (set_type, sample_id)
+                text_a = ' '.join(words)
+                # label = [absa_label_vocab[tag] for tag in tags]
+                # gold_ts例如 ['O', 'O', 'S-NEG', 'O'] --> [(2, 2, 'NEG')]，整个词语的起始位置和情感，用于统计class_count
+                gold_ts = tag2ts(ts_tag_sequence=tags)
+                for (b, e, s) in gold_ts:
+                    if s == 'POS':
+                        class_count[0] += 1
+                    if s == 'NEG':
+                        class_count[1] += 1
+                    if s == 'NEU':
+                        class_count[2] += 1
+                # guid= 'train-0', text_a='Avoid this place !', label ['O', 'O', 'S-NEG', 'O']
+                examples.append(InputExample(guid=guid, text_a=text_a, text_b=None, label=tags))
+                sample_id += 1
+        print("%s 类别统计数量: %s" % (set_type, class_count))
+        return examples
 
 def _truncate_seq_pair(tokens_a, tokens_b, max_length):
     """Truncates a sequence pair in place to the maximum length."""
@@ -254,7 +349,7 @@ def convert_examples_to_seq_features(examples, label_list, tokenizer,
             wid += 1
             # move the token pointer
             tid += len(subwords)
-        #print(evaluate_label_ids)
+        # print(evaluate_label_ids)
         assert tid == len(tokens_a)
         evaluate_label_ids = np.array(evaluate_label_ids, dtype=np.int32)
         examples_tokenized.append((tokens_a, labels_a, evaluate_label_ids))
@@ -262,19 +357,19 @@ def convert_examples_to_seq_features(examples, label_list, tokenizer,
             max_seq_length = len(tokens_a)
     # 最长的序列+2，因为count on the [CLS] and [SEP]
     max_seq_length += 2
-    #max_seq_length = 128
+    # max_seq_length = 128
     for ex_index, (tokens_a, labels_a, evaluate_label_ids) in enumerate(examples_tokenized):
-        #tokens_a = tokenizer.tokenize(example.text_a)
+        # tokens_a = tokenizer.tokenize(example.text_a)
 
         # Account for [CLS] and [SEP] with "- 2"
         # for sequence labeling, better not truncate the sequence
-        #if len(tokens_a) > max_seq_length - 2:
+        # if len(tokens_a) > max_seq_length - 2:
         #    tokens_a = tokens_a[:(max_seq_length - 2)]
         #    labels_a = labels_a
-        #末尾添加SEP的token
+        # 末尾添加SEP的token
         tokens = tokens_a + [sep_token]
         segment_ids = [sequence_a_segment_id] * len(tokens)
-        #加上最后个SEP的label，设为O
+        # 加上最后个SEP的label，设为O
         labels = labels_a + ['O']
         if cls_token_at_end:
             # evaluate label ids not change
@@ -287,13 +382,13 @@ def convert_examples_to_seq_features(examples, label_list, tokenizer,
             labels = ['O'] + labels
             # 所有数+1，评估时id，向右移动一位
             evaluate_label_ids += 1
-        #把字转换成id，例如[101, 2057, 1010, 2045, 2020, 2176, 1997, 2149, 1010, 3369, 2012, 11501, 1010, 1996, 2173, 2001, 4064, 1010, 1998, 1996, 3095, 6051, 2066, 2057, 2020, 16625, 2006, 2068, 1998, 2027, 2020, 2200, 12726, 1012, 102]
+        # 把字转换成id，例如[101, 2057, 1010, 2045, 2020, 2176, 1997, 2149, 1010, 3369, 2012, 11501, 1010, 1996, 2173, 2001, 4064, 1010, 1998, 1996, 3095, 6051, 2066, 2057, 2020, 16625, 2006, 2068, 1998, 2027, 2020, 2200, 12726, 1012, 102]
         input_ids = tokenizer.convert_tokens_to_ids(tokens)
-        #输入的mask，例如[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+        # 输入的mask，例如[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
         input_mask = [1 if mask_padding_with_zero else 0] * len(input_ids)
         # padding到最大序列长度Zero-pad up to the sequence length.
         padding_length = max_seq_length - len(input_ids)
-        #print("Current labels:", labels), labels标签字符转换成id， 例如[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        # print("Current labels:", labels), labels标签字符转换成id， 例如[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
         label_ids = [label_map[label] for label in labels]
 
         # pad the input sequence and the mask sequence
@@ -306,16 +401,16 @@ def convert_examples_to_seq_features(examples, label_list, tokenizer,
             # right shift padding_length for evaluate_label_ids
             evaluate_label_ids += padding_length
         else:
-            #在序列的右边开始，例如最大序列长度是83： [101, 2057, 1010, 2045, 2020, 2176, 1997, 2149, 1010, 3369, 2012, 11501, 1010, 1996, 2173, 2001, 4064, 1010, 1998, 1996, 3095, 6051, 2066, 2057, 2020, 16625, 2006, 2068, 1998, 2027, 2020, 2200, 12726, 1012, 102, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-            #evaluate_label_ids要评估的id是不变的，我们不评估padding的那些id， padding evaluate ids not change
+            # 在序列的右边开始，例如最大序列长度是83： [101, 2057, 1010, 2045, 2020, 2176, 1997, 2149, 1010, 3369, 2012, 11501, 1010, 1996, 2173, 2001, 4064, 1010, 1998, 1996, 3095, 6051, 2066, 2057, 2020, 16625, 2006, 2068, 1998, 2027, 2020, 2200, 12726, 1012, 102, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+            # evaluate_label_ids要评估的id是不变的，我们不评估padding的那些id， padding evaluate ids not change
             input_ids = input_ids + ([pad_token] * padding_length)
             # 增加mask的长度，padding的位置的mask数字要和input_mask的不一样，最终结果，例如[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
             input_mask = input_mask + ([0 if mask_padding_with_zero else 1] * padding_length)
-            #padding部分的segment id扩充
+            # padding部分的segment id扩充
             segment_ids = segment_ids + ([pad_token_segment_id] * padding_length)
-            #把padding部分的labels id都设为0，例如[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+            # 把padding部分的labels id都设为0，例如[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
             label_ids = label_ids + ([0] * padding_length)
-        #验证这些长度都达到了序列最大长度
+        # 验证这些长度都达到了序列最大长度
         assert len(input_ids) == max_seq_length
         assert len(input_mask) == max_seq_length
         assert len(segment_ids) == max_seq_length
@@ -325,13 +420,13 @@ def convert_examples_to_seq_features(examples, label_list, tokenizer,
             logger.info("*** 打印前5个样本示例 ***")
             logger.info("guid: %s" % (example.guid))
             logger.info("tokens: %s" % " ".join(
-                    [str(x) for x in tokens]))
+                [str(x) for x in tokens]))
             logger.info("input_ids: %s" % " ".join([str(x) for x in input_ids]))
             logger.info("input_mask: %s" % " ".join([str(x) for x in input_mask]))
             logger.info("segment_ids: %s" % " ".join([str(x) for x in segment_ids]))
             logger.info("labels: %s " % ' '.join([str(x) for x in label_ids]))
             logger.info("evaluate label ids: %s" % evaluate_label_ids)
-        #把转换好的feature加入到features列表
+        # 把转换好的feature加入到features列表
         features.append(
             SeqInputFeatures(input_ids=input_ids,
                              input_mask=input_mask,
@@ -356,7 +451,7 @@ def convert_examples_to_features(examples, label_list, max_seq_length,
         `cls_token_segment_id` define the segment id associated to the CLS token (0 for BERT, 2 for XLNet)
     """
 
-    label_map = {label : i for i, label in enumerate(label_list)}
+    label_map = {label: i for i, label in enumerate(label_list)}
 
     features = []
     for (ex_index, example) in enumerate(examples):
@@ -441,17 +536,17 @@ def convert_examples_to_features(examples, label_list, max_seq_length,
             logger.info("*** Example ***")
             logger.info("guid: %s" % (example.guid))
             logger.info("tokens: %s" % " ".join(
-                    [str(x) for x in tokens]))
+                [str(x) for x in tokens]))
             logger.info("input_ids: %s" % " ".join([str(x) for x in input_ids]))
             logger.info("input_mask: %s" % " ".join([str(x) for x in input_mask]))
             logger.info("segment_ids: %s" % " ".join([str(x) for x in segment_ids]))
             logger.info("label: %s (id = %d)" % (example.label, label_id))
 
         features.append(
-                InputFeatures(input_ids=input_ids,
-                              input_mask=input_mask,
-                              segment_ids=segment_ids,
-                              label_id=label_id))
+            InputFeatures(input_ids=input_ids,
+                          input_mask=input_mask,
+                          segment_ids=segment_ids,
+                          label_id=label_id))
     return features
 
 
@@ -466,14 +561,14 @@ def match_ts(gold_ts_sequence, pred_ts_sequence):
     tag2tagid = {'POS': 0, 'NEG': 1, 'NEU': 2}
     hit_count, gold_count, pred_count = np.zeros(3), np.zeros(3), np.zeros(3)
     for t in gold_ts_sequence:
-        #print(t)
+        # print(t)
         ts_tag = t[2]
         tid = tag2tagid[ts_tag]
         gold_count[tid] += 1
     for t in pred_ts_sequence:
         ts_tag = t[2]
         tid = tag2tagid[ts_tag]
-        #如果（begin，end，sentiment）完全匹配，算是hit一个
+        # 如果（begin，end，sentiment）完全匹配，算是hit一个
         if t in gold_ts_sequence:
             hit_count[tid] += 1
         pred_count[tid] += 1
@@ -491,11 +586,11 @@ def compute_metrics_absa(preds, labels, all_evaluate_label_ids, tagging_schema):
     """
     if tagging_schema == 'BIEOS':
         absa_label_vocab = {'O': 0, 'EQ': 1, 'B-POS': 2, 'I-POS': 3, 'E-POS': 4, 'S-POS': 5,
-                        'B-NEG': 6, 'I-NEG': 7, 'E-NEG': 8, 'S-NEG': 9,
-                        'B-NEU': 10, 'I-NEU': 11, 'E-NEU': 12, 'S-NEU': 13}
+                            'B-NEG': 6, 'I-NEG': 7, 'E-NEG': 8, 'S-NEG': 9,
+                            'B-NEU': 10, 'I-NEU': 11, 'E-NEU': 12, 'S-NEU': 13}
     elif tagging_schema == 'BIO':
-        absa_label_vocab = {'O': 0, 'EQ': 1, 'B-POS': 2, 'I-POS': 3, 
-        'B-NEG': 4, 'I-NEG': 5, 'B-NEU': 6, 'I-NEU': 7}
+        absa_label_vocab = {'O': 0, 'EQ': 1, 'B-POS': 2, 'I-POS': 3,
+                            'B-NEG': 4, 'I-NEG': 5, 'B-NEU': 6, 'I-NEU': 7}
     elif tagging_schema == 'OT':
         absa_label_vocab = {'O': 0, 'EQ': 1, 'T-POS': 2, 'T-NEG': 3, 'T-NEU': 4}
     else:
@@ -512,9 +607,9 @@ def compute_metrics_absa(preds, labels, all_evaluate_label_ids, tagging_schema):
     n_samples = len(all_evaluate_label_ids)
     pred_y, gold_y = [], []
     class_count = np.zeros(3)
-    #对每个样本进行循环
+    # 对每个样本进行循环
     for i in range(n_samples):
-        #第i个样本的真实的单词数  eg: [1 2 3 4]
+        # 第i个样本的真实的单词数  eg: [1 2 3 4]
         evaluate_label_ids = all_evaluate_label_ids[i]
         # 找出单词的预测的标签,  eg: [0 0 0 0]
         pred_labels = preds[i][evaluate_label_ids]
@@ -535,9 +630,9 @@ def compute_metrics_absa(preds, labels, all_evaluate_label_ids, tagging_schema):
         else:
             # current tagging schema is BIEOS, do nothing
             pass
-        #获取预测和真实的对应的单词和感情, g_ts_sequence, eg: [(1, 3, 'POS')]  p_ts_sequence, eg: []
+        # 获取预测和真实的对应的单词和感情, g_ts_sequence, eg: [(1, 3, 'POS')]  p_ts_sequence, eg: []
         g_ts_sequence, p_ts_sequence = tag2ts(ts_tag_sequence=gold_tags), tag2ts(ts_tag_sequence=pred_tags)
-        #对比g_ts_sequence, p_ts_sequence结果
+        # 对比g_ts_sequence, p_ts_sequence结果
         hit_ts_count, gold_ts_count, pred_ts_count = match_ts(gold_ts_sequence=g_ts_sequence,
                                                               pred_ts_sequence=p_ts_sequence)
         # 统计下所有结果, n_tp_ts eg: [231.  99.   6.] 元素分别表示【'POS': 0, 'NEG': 1, 'NEU': 2】匹配的个数
@@ -546,7 +641,7 @@ def compute_metrics_absa(preds, labels, all_evaluate_label_ids, tagging_schema):
         n_gold_ts += gold_ts_count
         # n_pred_ts eg: [365. 181.  20.]  表示预测得到的POS，NEG NEU的个数
         n_pred_ts += pred_ts_count
-        #统计下类别数量class_count [327. 186.  34.]，和n_gold_ts一样
+        # 统计下类别数量class_count [327. 186.  34.]，和n_gold_ts一样
         for (b, e, s) in g_ts_sequence:
             if s == 'POS':
                 class_count[0] += 1
@@ -563,7 +658,7 @@ def compute_metrics_absa(preds, labels, all_evaluate_label_ids, tagging_schema):
         # 分类正确的正样本除以所有真正的正样本
         ts_recall[i] = float(n_ts) / float(n_g_ts + SMALL_POSITIVE_CONST)
         ts_f1[i] = 2 * ts_precision[i] * ts_recall[i] / (ts_precision[i] + ts_recall[i] + SMALL_POSITIVE_CONST)
-    #平均后得到macro f1
+    # 平均后得到macro f1
     macro_f1 = ts_f1.mean()
 
     # calculate micro-average scores for ts task
@@ -592,6 +687,7 @@ processors = {
     "rest14": ABSAProcessor,
     "rest15": ABSAProcessor,
     "rest16": ABSAProcessor,
+    "cosmetics": CosmeticsProcessor,
 }
 
 output_modes = {
@@ -611,4 +707,5 @@ output_modes = {
     "rest15": "classification",
     "rest16": "classification",
     "rest_total_revised": "classification",
+    "cosmetics": "classification",
 }
