@@ -146,7 +146,7 @@ def tag2ts(ts_tag_sequence):
     """
     transform ts tag sequence to targeted sentiment
     返回整个单词位置和唯一情感
-    :param ts_tag_sequence: tag sequence for ts task，使用所有tags
+    :param ts_tag_sequence: tag sequence for ts task，使用所有tags, eg: ['O', 'B-POS', 'I-POS', 'E-POS']
     :return: 第一个数字是开始，第二个数字是结束， [(19, 19, 'NEG')]
     """
     n_tags = len(ts_tag_sequence)

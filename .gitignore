@@ -11,6 +11,7 @@ runs
 *.log
 *.pyc
 .idea
+.DS_Store
 
 #model
 formbot/models/

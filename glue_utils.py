@@ -457,9 +457,9 @@ def convert_examples_to_features(examples, label_list, max_seq_length,
 
 def match_ts(gold_ts_sequence, pred_ts_sequence):
     """
-    calculate the number of correctly predicted targeted sentiment
-    :param gold_ts_sequence: gold standard targeted sentiment sequence
-    :param pred_ts_sequence: predicted targeted sentiment sequence
+    计算正确预测的目标情感数量
+    :param gold_ts_sequence: gold standard targeted sentiment sequence, eg [(1, 3, 'POS')]
+    :param pred_ts_sequence: predicted targeted sentiment sequence, eg: []
     :return:
     """
     # positive, negative and neutral
@@ -473,6 +473,7 @@ def match_ts(gold_ts_sequence, pred_ts_sequence):
     for t in pred_ts_sequence:
         ts_tag = t[2]
         tid = tag2tagid[ts_tag]
+        #如果（begin，end，sentiment）完全匹配，算是hit一个
         if t in gold_ts_sequence:
             hit_count[tid] += 1
         pred_count[tid] += 1
@@ -513,15 +514,15 @@ def compute_metrics_absa(preds, labels, all_evaluate_label_ids, tagging_schema):
     class_count = np.zeros(3)
     #对每个样本进行循环
     for i in range(n_samples):
-        #第i个样本的真实的单词数
+        #第i个样本的真实的单词数  eg: [1 2 3 4]
         evaluate_label_ids = all_evaluate_label_ids[i]
-        # 找出单词的预测的标签,
+        # 找出单词的预测的标签,  eg: [0 0 0 0]
         pred_labels = preds[i][evaluate_label_ids]
         # 真实的单词的标签, 例如 [0 2 3 4]
         gold_labels = labels[i][evaluate_label_ids]
         # 确认长度是一样的
         assert len(pred_labels) == len(gold_labels)
-        # 把id转换成tag
+        # 把id转换成tag, pred_tags eg: ['O', 'O', 'O', 'O'] ;  gold_tags eg: ['O', 'B-POS', 'I-POS', 'E-POS']
         pred_tags = [absa_id2tag[label] for label in pred_labels]
         gold_tags = [absa_id2tag[label] for label in gold_labels]
         #
@@ -534,14 +535,18 @@ def compute_metrics_absa(preds, labels, all_evaluate_label_ids, tagging_schema):
         else:
             # current tagging schema is BIEOS, do nothing
             pass
-        #获取预测和真实的对应的单词和感情
+        #获取预测和真实的对应的单词和感情, g_ts_sequence, eg: [(1, 3, 'POS')]  p_ts_sequence, eg: []
         g_ts_sequence, p_ts_sequence = tag2ts(ts_tag_sequence=gold_tags), tag2ts(ts_tag_sequence=pred_tags)
-        #对比
+        #对比g_ts_sequence, p_ts_sequence结果
         hit_ts_count, gold_ts_count, pred_ts_count = match_ts(gold_ts_sequence=g_ts_sequence,
                                                               pred_ts_sequence=p_ts_sequence)
+        # 统计下所有结果, n_tp_ts eg: [231.  99.   6.] 元素分别表示【'POS': 0, 'NEG': 1, 'NEU': 2】匹配的个数
         n_tp_ts += hit_ts_count
+        #  n_gold_ts eg： [327. 186.  34.]， 表示真实的POS，NEG NEU的个数
         n_gold_ts += gold_ts_count
+        # n_pred_ts eg: [365. 181.  20.]  表示预测得到的POS，NEG NEU的个数
         n_pred_ts += pred_ts_count
+        #统计下类别数量class_count [327. 186.  34.]，和n_gold_ts一样
         for (b, e, s) in g_ts_sequence:
             if s == 'POS':
                 class_count[0] += 1
@@ -553,10 +558,12 @@ def compute_metrics_absa(preds, labels, all_evaluate_label_ids, tagging_schema):
         n_ts = n_tp_ts[i]
         n_g_ts = n_gold_ts[i]
         n_p_ts = n_pred_ts[i]
+        # 分类正确的正样本除以所有被分类为正确的样本
         ts_precision[i] = float(n_ts) / float(n_p_ts + SMALL_POSITIVE_CONST)
+        # 分类正确的正样本除以所有真正的正样本
         ts_recall[i] = float(n_ts) / float(n_g_ts + SMALL_POSITIVE_CONST)
         ts_f1[i] = 2 * ts_precision[i] * ts_recall[i] / (ts_precision[i] + ts_recall[i] + SMALL_POSITIVE_CONST)
-
+    #平均后得到macro f1
     macro_f1 = ts_f1.mean()
 
     # calculate micro-average scores for ts task
@@ -568,8 +575,11 @@ def compute_metrics_absa(preds, labels, all_evaluate_label_ids, tagging_schema):
 
     # TP + FP
     n_p_total = sum(n_pred_ts)
+    # micro_p micro的精确率
     micro_p = float(n_tp_total) / (n_p_total + SMALL_POSITIVE_CONST)
+    # micro_r  micro的召回率
     micro_r = float(n_tp_total) / (n_g_total + SMALL_POSITIVE_CONST)
+    # 计算micro f1
     micro_f1 = 2 * micro_p * micro_r / (micro_p + micro_r + SMALL_POSITIVE_CONST)
     scores = {'macro-f1': macro_f1, 'precision': micro_p, "recall": micro_r, "micro-f1": micro_f1}
     return scores
