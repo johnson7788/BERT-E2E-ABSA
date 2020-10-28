@@ -3,7 +3,7 @@ import os
 import torch
 import numpy as np
 
-from glue_utils import convert_examples_to_seq_features, compute_metrics_absa, ABSAProcessor
+from glue_utils import convert_examples_to_seq_features, compute_metrics_absa,processors
 from tqdm import tqdm
 from transformers import BertConfig, BertTokenizer, XLNetConfig, XLNetTokenizer, WEIGHTS_NAME
 from absa_layer import BertABSATagger
@@ -25,7 +25,7 @@ def load_and_cache_examples(args, task, tokenizer):
     :param tokenizer:  实例化好的tokenizer
     :return:  dataset, all_evaluate_label_ids, total_words句子的列表
     """
-    processor = ABSAProcessor()
+    processor = processors[task]()
     # 设定cached_features_file的名字， 例如'./data/rest15/cached_test_bert-base-uncased_128_rest15'
     cached_features_file = os.path.join(args.data_dir, 'cached_{}_{}_{}_{}'.format(
         'test',

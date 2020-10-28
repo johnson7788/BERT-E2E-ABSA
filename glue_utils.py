@@ -332,8 +332,8 @@ def convert_examples_to_seq_features(examples, label_list, tokenizer,
         words = example.text_a.split(' ')
         tokens_a = words
         labels_a = example.label
-        # wid, tid = 0, 0
-        # for word, label in zip(words, example.label):
+        wid, tid = 0, 0
+        for word, label in zip(words, example.label):
         #     # 拆分成subwords，中文就没有必要了
         #     subwords = tokenizer.tokenize(word)
         #     tokens_a.extend(subwords)
@@ -341,11 +341,12 @@ def convert_examples_to_seq_features(examples, label_list, tokenizer,
         #         labels_a.extend([label] + ['EQ'] * (len(subwords) - 1))
         #     else:
         #         labels_a.extend(['O'] * len(subwords))
-        #     evaluate_label_ids.append(tid)
+            evaluate_label_ids.append(tid)
         #     # 拆分成subwords，拆分的话，单词会增多
-        #     wid += 1
+            wid += 1
         #     # move the token pointer
         #     tid += len(subwords)
+            tid += len(word)
         # print(evaluate_label_ids)
         # assert tid == len(tokens_a)
         evaluate_label_ids = np.array(evaluate_label_ids, dtype=np.int32)

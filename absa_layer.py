@@ -414,7 +414,7 @@ class BertABSATagger(BertPreTrainedModel):
         self.num_labels = bert_config.num_labels
         #设置模型的配置
         self.tagger_config = TaggerConfig()
-        # absa_type是linear或者[ gru, san, tfm, crf]
+        # absa_type是linear或者[ gru, san, tfm, crf], 自动从配置中加载
         self.tagger_config.absa_type = bert_config.absa_type.lower()
         #
         if bert_config.tfm_mode == 'finetune':
