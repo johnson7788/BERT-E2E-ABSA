@@ -370,13 +370,18 @@ def convert_examples_to_seq_features(examples, label_list, tokenizer,
         # padding到最大序列长度Zero-pad up to the sequence length.
         padding_length = max_seq_length - len(input_ids)
         # print("Current labels:", labels), labels标签字符转换成id， 例如[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-        label_ids = [label_map[label] for label in labels_a]
+        single_label = [label_map[label] for label in labels_a]
+        #随便取一个临时数值9作为初始，最后计算时也不会用到这个，只是占位
+        label_ids = [9] * len(input_ids)
+        #修改固定位置为这个label
+        label_ids[locations_a[0][0]:locations_a[0][1]] = single_label * (locations_a[0][1]-locations_a[0][0])
 
         # 填充输入序列和mask序列, 从左边开始padding还是右边
         if pad_on_left:
             input_ids = ([pad_token] * padding_length) + input_ids
             input_mask = ([0 if mask_padding_with_zero else 1] * padding_length) + input_mask
             segment_ids = ([pad_token_segment_id] * padding_length) + segment_ids
+            label_ids = ([9] * padding_length) + label_ids
             # right shift padding_length for evaluate_label_ids
             evaluate_label_ids += padding_length
         else:
@@ -385,12 +390,14 @@ def convert_examples_to_seq_features(examples, label_list, tokenizer,
             input_ids = input_ids + ([pad_token] * padding_length)
             # 增加mask的长度，padding的位置的mask数字要和input_mask的不一样，最终结果，例如[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
             input_mask = input_mask + ([0 if mask_padding_with_zero else 1] * padding_length)
+            label_ids = label_ids + ([9] * padding_length)
             # padding部分的segment id扩充
             segment_ids = segment_ids + ([pad_token_segment_id] * padding_length)
         # 验证这些长度都达到了序列最大长度
         assert len(input_ids) == max_seq_length
         assert len(input_mask) == max_seq_length
         assert len(segment_ids) == max_seq_length
+        assert len(label_ids) == max_seq_length
         # 打印前5个样本
         if ex_index < 5:
             logger.info("*** 打印前5个样本示例 ***")
