@@ -26,6 +26,7 @@ def load_and_cache_examples(args, task, tokenizer):
     :return:  dataset, all_evaluate_label_ids, total_words句子的列表
     """
     processor = processors[task]()
+    # 提供的参数model_name_or_path 只是为了生成或加载cached_features_file
     # 设定cached_features_file的名字， 例如'./data/rest15/cached_test_bert-base-uncased_128_rest15'
     cached_features_file = os.path.join(args.data_dir, 'cached_{}_{}_{}_{}'.format(
         'test',
@@ -34,7 +35,7 @@ def load_and_cache_examples(args, task, tokenizer):
         str(task)))
     # 如果存在cached_features_file，直接加载
     if os.path.exists(cached_features_file):
-        print("cached_features_file:", cached_features_file)
+        print("存在cached_features_file:", cached_features_file)
         features = torch.load(cached_features_file)
         examples = processor.get_test_examples(args.data_dir, args.tagging_schema)
     else:
@@ -98,18 +99,19 @@ def init_args():
 
 
 def main():
-    # perform evaluation on single GPU
+    # 在单颗GPU或CPU上评估模型
     args = init_args()
+    # GPU相关
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     args.device = device
     if torch.cuda.is_available():
         args.n_gpu = torch.cuda.device_count()
-
+    # 找到对应的model class和tokenizer
     args.model_type = args.model_type.lower()
     _, model_class, tokenizer_class = MODEL_CLASSES[args.model_type]
 
-    #加载训练好的模型 (including the fine-tuned GPT/BERT/XLNET)
-    print("开始加载checkpoint %s/%s..." % (args.ckpt, WEIGHTS_NAME))
+    #加载训练好的模型 (including the fine-tuned GPT/BERT/XLNET), 默认WEIGHTS_NAME是 pytorch_model.bin
+    print("开始加载checkpoint，位置是:%s/%s" % (args.ckpt, WEIGHTS_NAME))
     model = model_class.from_pretrained(args.ckpt)
     # 遵循加载的模型中的tokenizer的属性, e.g., do_lower_case=True
     tokenizer = tokenizer_class.from_pretrained(args.absa_home)
