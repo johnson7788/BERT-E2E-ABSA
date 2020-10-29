@@ -220,6 +220,7 @@ def predict(args, model, tokenizer):
         # 下一句话
         idx += 1
     if gold_labels is not None:
+        print("计算并打印gold_labels匹配情况")
         result = compute_metrics_absa(preds=total_preds, labels=gold_labels, all_evaluate_label_ids=evaluate_label_ids,
                                       tagging_schema=args.tagging_schema)
         for (k, v) in result.items():

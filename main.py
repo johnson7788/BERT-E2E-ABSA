@@ -245,30 +245,35 @@ def evaluate(args, model, tokenizer, mode, prefix=""):
     """
     评估模型
     :param args:
-    :param model:
-    :param tokenizer:
-    :param mode:
-    :param prefix:
-    :return:
+    :param model: 加载好的模型
+    :param tokenizer: 加载好的tokenizer
+    :param mode: dev还是test
+    :return: 返回类似格式
+    eval_loss = 0.14909637707974263
+    macro-f1 = 0.580691820122606
+    micro-f1 = 0.6091904960800573
+    precision = 0.6401535578632168
+    recall = 0.5811752698617894
     """
     eval_task_names = (args.task_name,)
     eval_outputs_dirs = (args.output_dir,)
-
+    # 存储评估结果
     results = {}
     for eval_task, eval_output_dir in zip(eval_task_names, eval_outputs_dirs):
         eval_dataset, eval_evaluate_label_ids = load_and_cache_examples(args, eval_task, tokenizer, mode=mode)
 
         if not os.path.exists(eval_output_dir) and args.local_rank in [-1, 0]:
             os.makedirs(eval_output_dir)
-
+        #根据gpu，计算batch_size
         args.eval_batch_size = args.per_gpu_eval_batch_size * max(1, args.n_gpu)
-        # Note that DistributedSampler samples randomly
+        # 请注意，使用DistributedSampler随机采样
         eval_sampler = SequentialSampler(eval_dataset) if args.local_rank == -1 else DistributedSampler(eval_dataset)
         eval_dataloader = DataLoader(eval_dataset, sampler=eval_sampler, batch_size=args.eval_batch_size)
 
         # Eval!
         #logger.info("***** Running evaluation on %s.txt *****" % mode)
         eval_loss = 0.0
+        #记录评估的步数
         nb_eval_steps = 0
         preds = None
         out_label_ids = None
@@ -276,49 +281,52 @@ def evaluate(args, model, tokenizer, mode, prefix=""):
         for batch in tqdm(eval_dataloader, desc="Evaluating"):
             model.eval()
             batch = tuple(t.to(args.device) for t in batch)
-
+            #去取出一个batch的数据，放入inputs
             with torch.no_grad():
                 inputs = {'input_ids':      batch[0],
                           'attention_mask': batch[1],
                           'token_type_ids': batch[2] if args.model_type in ['bert', 'xlnet'] else None,  # XLM don't use segment_ids
                           'labels':         batch[3]}
                 outputs = model(**inputs)
-                # logits: (bsz, seq_len, label_size)
-                # here the loss is the masked loss
+                # logits的形状 (batch_size, seq_len, label_size)
+                # 这里的损失是masked的损失
                 tmp_eval_loss, logits = outputs[:2]
                 eval_loss += tmp_eval_loss.mean().item()
-
+                # 收集logits
                 crf_logits.append(logits)
                 crf_mask.append(batch[1])
+            #评估完一个step，步数加1
             nb_eval_steps += 1
+            print(f"\n评估完第{nb_eval_steps}个step")
+            #第一次时preds为None，否则，把logits都都收集起来
             if preds is None:
                 preds = logits.detach().cpu().numpy()
                 out_label_ids = inputs['labels'].detach().cpu().numpy()
             else:
                 preds = np.append(preds, logits.detach().cpu().numpy(), axis=0)
                 out_label_ids = np.append(out_label_ids, inputs['labels'].detach().cpu().numpy(), axis=0)
+        #计算平均损失
         eval_loss = eval_loss / nb_eval_steps
-        # argmax operation over the last dimension
+        # argmax在最后一个维度上的操作
         if model.tagger_config.absa_type != 'crf':
             # greedy decoding
             preds = np.argmax(preds, axis=-1)
         else:
-            # viterbi decoding for CRF-based model
+            # viterbi 算法 for CRF-based model
             crf_logits = torch.cat(crf_logits, dim=0)
             crf_mask = torch.cat(crf_mask, dim=0)
             preds = model.tagger.viterbi_tags(logits=crf_logits, mask=crf_mask)
         result = compute_metrics_absa(preds, out_label_ids, eval_evaluate_label_ids, args.tagging_schema)
         result['eval_loss'] = eval_loss
         results.update(result)
-
+        #写入到文件，保存评估结果
         output_eval_file = os.path.join(eval_output_dir, "%s_results.txt" % mode)
         with open(output_eval_file, "w") as writer:
-            #logger.info("***** %s results *****" % mode)
+            logger.info("***** %s results *****" % mode)
             for key in sorted(result.keys()):
                 if 'eval_loss' in key:
                     logger.info("  %s = %s", key, str(result[key]))
                 writer.write("%s = %s\n" % (key, str(result[key])))
-            #logger.info("***** %s results *****" % mode)
 
     return results
 
@@ -474,6 +482,7 @@ def main():
         results = {}
         best_f1 = -999999.0
         best_checkpoint = None
+        # checkpoints eg: ['bert-gru-cosmetics-finetune/checkpoint-1300', 'bert-gru-cosmetics-finetune/checkpoint-1500']
         checkpoints = [args.output_dir]
         #是否要评估所有保存的checkpoints
         if args.eval_all_checkpoints:
@@ -482,10 +491,12 @@ def main():
         logger.info("在以下checkpoints上执行验证: %s", checkpoints)
         test_results = {}
         for checkpoint in checkpoints:
+            # 提取文件夹后缀的step checkpoint-1500, global_step=1500
             global_step = checkpoint.split('-')[-1] if len(checkpoints) > 1 else ""
             if global_step == 'finetune' or global_step == 'train' or global_step == 'fix' or global_step == 'overfit':
                 continue
-            #验证集
+            #验证集评估
+            logger.info("开始在开发集上进行评估")
             model = model_class.from_pretrained(checkpoint)
             model.to(args.device)
             dev_result = evaluate(args, model, tokenizer, mode='dev', prefix=global_step)
@@ -497,6 +508,7 @@ def main():
             dev_result = dict((k + '_{}'.format(global_step), v) for k, v in dev_result.items())
             results.update(dev_result)
             #测试集上测试
+            logger.info("开始在测试集上进行评估")
             test_result = evaluate(args, model, tokenizer, mode='test', prefix=global_step)
             test_result = dict((k + '_{}'.format(global_step), v) for k, v in test_result.items())
             test_results.update(test_result)
@@ -517,6 +529,7 @@ def main():
                 test_f1_values.append((k, v))
             if 'eval_loss' in k:
                 test_loss_values.append((k, v))
+        # 把每步的dev和test集的验证结果写到日志中
         log_file_path = '%s/log.txt' % args.output_dir
         log_file = open(log_file_path, 'a')
         log_file.write("\tValidation:\n")
