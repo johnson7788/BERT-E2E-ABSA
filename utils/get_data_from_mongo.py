@@ -109,10 +109,11 @@ def pre_process(save_file, new_file):
 
 def only_sentiment_process(save_file, new_file):
   """
-  处理成和rest15一样的文件,单纯的情感分类，标签是 整个单词=(起始位置，结束位置，情感), {'NEG':0, 'NEU':1, 'POS':2}
+  处理成和rest15一样的文件,单纯的情感分类，标签是 整个单词=(起始位置，结束位置，情感), {'NEG':0, 'NEU':1, 'POS':2}， 每个句子只有一个单词的预测
   :param save_file:
   :param new_file: 存储到新文件
-  :return: 存储到文件，格式是： 句子####单词1=(3,5,'NEG') 单词2=(10,15,'NEU') 单词3=(21,23,'NEG')...
+  :return: 存储到文件，格式是： 句子####单词=(3,5,'NEG')
+                            句子####单词=(10,15,'NEU')
   """
   #原始文件中的sScore的映射方式
   class2id = {
@@ -134,7 +135,6 @@ def only_sentiment_process(save_file, new_file):
       split_content = [c for c in content]
       newcontent = " ".join(split_content)
       des_line_prefix = newcontent + "####"
-      des_line_suffix = ""
       #如果这个句子没有aspect，那就过滤掉
       if not line_chinese["aspect"]:
         continue
@@ -149,11 +149,11 @@ def only_sentiment_process(save_file, new_file):
         aspectTerm_insentence = "".join(split_content[start:end])
         if not aspectTerm == aspectTerm_insentence:
           raise Exception(f"单词在句子中位置对应不上，请检查,句子行数{total}, 句子是{line_chinese}")
-        des_line_suffix += f"{aspectTerm}=({start},{end},{sentiment}) "
-      des_line = des_line_prefix + des_line_suffix.strip()
-      print(des_line)
-      total += 1
-      f.write(des_line + "\n")
+        des_line_suffix = f"{aspectTerm}=({start},{end},{sentiment})"
+        des_line = des_line_prefix + des_line_suffix.strip()
+        print(des_line)
+        total += 1
+        f.write(des_line + "\n")
   print(f"文件已生成{new_file}, 总数据量是{total}")
 
 def check_data(save_file):
@@ -178,6 +178,6 @@ if __name__ == '__main__':
   new_file = "../data/cosmetics/final_all.txt"
   # db2local(save_file)
   # pre_process(save_file,new_file)
-  only_sentiment_process(save_file,new_file)
+  # only_sentiment_process(save_file,new_file)
   split_all(new_file)
   # check_data(save_file)

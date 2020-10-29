@@ -131,6 +131,7 @@ def init_args():
 
 def train(args, train_dataset, model, tokenizer):
     """ 训练模型 """
+    #保存SummaryWriter
     if args.local_rank in [-1, 0]:
         tb_writer = SummaryWriter()
     # 根据gpu数量计算batch_size
@@ -172,19 +173,21 @@ def train(args, train_dataset, model, tokenizer):
     model.zero_grad()
     # trange 进度条
     train_iterator = trange(int(args.num_train_epochs), desc="Epoch", disable=args.local_rank not in [-1, 0])
-    # set the seed number
-    set_seed(args)  # Added here for reproductibility (even between python 2 and 3)
+    # 为了复现，设置随机数种子
+    set_seed(args)
     for _ in train_iterator:
         epoch_iterator = tqdm(train_dataloader, desc="Iteration", disable=args.local_rank not in [-1, 0])
         for step, batch in enumerate(epoch_iterator):
             model.train()
             # 如果是gpu，把tensor放到gpu
             batch = tuple(t.to(args.device) for t in batch)
-            # 取出一条数据的features
+            # 取出一条数据的features,
             inputs = {'input_ids':      batch[0],
                       'attention_mask': batch[1],
                       'token_type_ids': batch[2] if args.model_type in ['bert', 'xlnet'] else None,  # XLM don't use segment_ids
-                      'labels':         batch[3]}
+                      'labels':         batch[3],
+                      'locations':       batch[4],
+                      }
             ouputs = model(**inputs)
             # 第一个返回值是训练的损失
             loss = ouputs[0]  # model outputs are always tuple in pytorch-transformers (see doc)

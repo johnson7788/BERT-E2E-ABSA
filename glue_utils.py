@@ -339,8 +339,7 @@ def convert_examples_to_seq_features(examples, label_list, tokenizer,
         words = example.text_a.split(' ')
         tokens_a = words
         labels_a = example.label
-        evaluate_label_ids = example.location
-        evaluate_label_ids = np.array(evaluate_label_ids, dtype=np.int32)
+        evaluate_label_ids = np.array(example.location, dtype=np.int32)
         locations_a = np.array(example.location, dtype=np.int32)
         examples_tokenized.append((tokens_a, labels_a, evaluate_label_ids, locations_a))
         if len(tokens_a) > max_seq_length:
@@ -364,11 +363,16 @@ def convert_examples_to_seq_features(examples, label_list, tokenizer,
         # 把字转换成id，例如[101, 2057, 1010, 2045, 2020, 2176, 1997, 2149, 1010, 3369, 2012, 11501, 1010, 1996, 2173, 2001, 4064, 1010, 1998, 1996, 3095, 6051, 2066, 2057, 2020, 16625, 2006, 2068, 1998, 2027, 2020, 2200, 12726, 1012, 102]
         input_ids = tokenizer.convert_tokens_to_ids(tokens)
         # 输入的mask，例如[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
-        input_mask = [1 if mask_padding_with_zero else 0] * len(input_ids)
+        # 修正mask，只关注要分类的词的字的位置，这个位置为1， 其它位置为0
+        if mask_padding_with_zero:
+            input_mask = [0] * len(input_ids)
+            input_mask[locations_a[0][0]:locations_a[0][1]] = [1] * (locations_a[0][1]-locations_a[0][0])
+        # labels 也转换成每个要关注词语的labels个数
+        labels = labels_a * (locations_a[0][1]-locations_a[0][0])
         # padding到最大序列长度Zero-pad up to the sequence length.
         padding_length = max_seq_length - len(input_ids)
         # print("Current labels:", labels), labels标签字符转换成id， 例如[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-        label_ids = [label_map[label] for label in labels_a]
+        label_ids = [label_map[label] for label in labels]
 
         # 填充输入序列和mask序列, 从左边开始padding还是右边
         if pad_on_left:

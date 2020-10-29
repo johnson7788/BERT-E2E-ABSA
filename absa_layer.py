@@ -464,13 +464,14 @@ class BertABSATagger(BertPreTrainedModel):
         self.classifier = nn.Linear(penultimate_hidden_size, bert_config.num_labels)
 
     def forward(self, input_ids, token_type_ids=None, attention_mask=None, labels=None,
-                position_ids=None, head_mask=None):
+                locations=None, position_ids=None, head_mask=None):
         """
         前向传播
-        :param input_ids:
+        :param input_ids: 句子的输入id
         :param token_type_ids:
         :param attention_mask:
-        :param labels:
+        :param labels: 标签
+        :param locations: 单词的位置信息
         :param position_ids:
         :param head_mask:
         :return:
@@ -478,13 +479,13 @@ class BertABSATagger(BertPreTrainedModel):
         # bert返回结果  sequence_output, pooled_output, (hidden_states), (attentions)
         outputs = self.bert(input_ids, position_ids=position_ids, token_type_ids=token_type_ids,
                             attention_mask=attention_mask, head_mask=head_mask)
-        # 最后一个Bert层的隐藏状态的shape: (batch_size, seq_len, hidden_size), bert的输出结果作为我们的输入
+        #  从 input_ids ((batch_size, seq_len) 到最后一个Bert层的隐藏状态的shape: (batch_size, seq_len, hidden_size), bert的输出结果作为我们的输入
         tagger_input = outputs[0]
-        #做一次Dropout, 形状不变 (batch_size, seq_len, hidden_size)
-        tagger_input = self.bert_dropout(tagger_input)
         #print("tagger_input.shape:", tagger_input.shape)
         if self.tagger is None or self.tagger_config.absa_type == 'crf':
             # 如果是选择的crf或者linear，直接使用线性分类器作为最后一层
+            # 提取每个字，累加每个字形成目标词，作为特征
+            # words_features = tagger_input
             logits = self.classifier(tagger_input)
         else:
             if self.tagger_config.absa_type == 'lstm':
@@ -500,7 +501,7 @@ class BertABSATagger(BertPreTrainedModel):
                 classifier_input = self.tagger(tagger_input)
                 classifier_input = classifier_input.transpose(0, 1)
             else:
-                raise Exception("Unimplemented downstream tagger %s..." % self.tagger_config.absa_type)
+                raise Exception("没有可用的下游任务的 tagger方法 %s..." % self.tagger_config.absa_type)
             classifier_input = self.tagger_dropout(classifier_input)
             logits = self.classifier(classifier_input)
         #输出元素outputs元祖，把原来的outputs的从第二位开始的也追加到现在的outputs里面, logits维度[batch_size,seq_lenth, num_labels]
@@ -511,11 +512,11 @@ class BertABSATagger(BertPreTrainedModel):
                 #使用交叉熵计算损失
                 loss_fct = CrossEntropyLoss()
                 if attention_mask is not None:
-                    #如果attention_mask存在时，损失的计算需要计算真实损失, attention_mask维度[batch_sieze,seq_len] flatten 到1维
+                    #如果attention_mask存在时，损失的计算需要计算真实损失, attention_mask维度[batch_size,seq_len] flatten 到1维
                     active_loss = attention_mask.view(-1) == 1
                     # active_loss是bool值，padding的部分为false，没有padding的部分为true,
                     # logits的维度从[batch_size,seq_lenth, num_labels]变成 [batch_size * seq_length, num_labels],
-                    # 然后只取active_loss为True部分的维度，计算真实损失 [True_length, num_labels]
+                    # 然后只取active_loss为True部分的维度，True_length是真实的序列长度，计算真实损失 [True_length, num_labels]
                     active_logits = logits.view(-1, self.num_labels)[active_loss]
                     #真实的labels[batch_size,seq_lenth] --> 拉平 [batch_size * seq_lenth], 取active_loss为True的部分,[True_length]
                     active_labels = labels.view(-1)[active_loss]
