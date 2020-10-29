@@ -222,6 +222,8 @@ class CosmeticsProcessor(DataProcessor):
             return ['O', 'EQ', 'B-POS', 'I-POS', 'E-POS', 'S-POS',
                     'B-NEG', 'I-NEG', 'E-NEG', 'S-NEG',
                     'B-NEU', 'I-NEU', 'E-NEU', 'S-NEU']
+        elif tagging_schema == 'SENTIMENT':
+            return ['NEG', 'NEU', 'POS']
         else:
             raise Exception("Invalid tagging schema %s..." % tagging_schema)
 

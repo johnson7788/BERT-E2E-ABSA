@@ -392,7 +392,7 @@ def main():
     if os.path.exists(args.output_dir) and os.listdir(args.output_dir) and args.do_train and not args.overwrite_output_dir:
         raise ValueError("Output directory ({}) already exists and is not empty. Use --overwrite_output_dir to overcome.".format(args.output_dir))
 
-    # Setup CUDA, GPU & distributed training
+    # 设置CUDA，GPU和分布式训练, local_rank == -1 表示不使用分布式训练
     if args.local_rank == -1 or args.no_cuda:
         device = torch.device("cuda" if torch.cuda.is_available() and not args.no_cuda else "cpu")
         args.n_gpu = torch.cuda.device_count()
@@ -406,7 +406,7 @@ def main():
 
     args.device = device
 
-    # Setup logging
+    # 日志格式
     logging.basicConfig(format='%(asctime)s - %(levelname)s - %(name)s -   %(message)s',
                         datefmt='%m/%d/%Y %H:%M:%S',
                         level=logging.INFO if args.local_rank in [-1, 0] else logging.WARN)
@@ -420,10 +420,11 @@ def main():
     #准备数据处理部分
     args.task_name = args.task_name.lower()
     if args.task_name not in processors:
-        raise ValueError("Task not found: %s" % args.task_name)
+        raise ValueError("在我们自定义的任务列表中没有发现任务: %s" % args.task_name)
     processor = processors[args.task_name]()
     # output_mode 是 classification，表示分类
     args.output_mode = output_modes[args.task_name]
+    #获取预定义的标签列表,这里使用自定义的方式，没有使用BIEOS，而是自定义SENTIMENT, ['NEG', 'NEU', 'POS']
     label_list = processor.get_labels(args.tagging_schema)
     num_labels = len(label_list)
 
