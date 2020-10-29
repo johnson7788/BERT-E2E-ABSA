@@ -371,18 +371,18 @@ def load_and_cache_examples(args, task, tokenizer, mode='train'):
                                                     pad_on_left=bool(args.model_type in ['xlnet']),
                                                     pad_token_segment_id=4 if args.model_type in ['xlnet'] else 0)
         if args.local_rank in [-1, 0]:
-            #logger.info("Saving features into cached file %s", cached_features_file)
+            logger.info("保存cached文件到本地: %s", cached_features_file)
             torch.save(features, cached_features_file)
 
     # 转换成tensor，建立dataset,包括input_id input_mask, segment_id, label_id,evaluate_label_id,
     all_input_ids = torch.tensor([f.input_ids for f in features], dtype=torch.long)
     all_input_mask = torch.tensor([f.input_mask for f in features], dtype=torch.long)
     all_segment_ids = torch.tensor([f.segment_ids for f in features], dtype=torch.long)
-
     all_label_ids = torch.tensor([f.label_ids for f in features], dtype=torch.long)
+    all_locations = torch.tensor([f.locations for f in features], dtype=torch.long)
     # all_evaluate_label_ids是要评估的那些位置的id
     all_evaluate_label_ids = [f.evaluate_label_ids for f in features]
-    dataset = TensorDataset(all_input_ids, all_input_mask, all_segment_ids, all_label_ids)
+    dataset = TensorDataset(all_input_ids, all_input_mask, all_segment_ids, all_label_ids, all_locations)
     return dataset, all_evaluate_label_ids
 
 
@@ -427,11 +427,11 @@ def main():
     #获取预定义的标签列表,这里使用自定义的方式，没有使用BIEOS，而是自定义SENTIMENT, ['NEG', 'NEU', 'POS']
     label_list = processor.get_labels(args.tagging_schema)
     num_labels = len(label_list)
-
+    #分布式训练设置
     if args.local_rank not in [-1, 0]:
         torch.distributed.barrier()
 
-    #初始化预训练模型,args.model_type是bert或xlnet等
+    #初始化预训练模型,args.model_type是bert或xlnet等, 注意cache_dir设置
     args.model_type = args.model_type.lower()
     config_class, model_class, tokenizer_class = MODEL_CLASSES[args.model_type]
     config = config_class.from_pretrained(args.config_name if args.config_name else args.model_name_or_path,
@@ -441,11 +441,13 @@ def main():
     #absa_type 是最后用linear还是crf，还是rnn或self-attention
     config.absa_type = args.absa_type
     config.tfm_mode = args.tfm_mode
+    # 是否固定bert参数
     config.fix_tfm = args.fix_tfm
     #加载，使用自定义的预训练模型，并缓存到model_cache， 例如BertABSATagger
     model = model_class.from_pretrained(args.model_name_or_path, from_tf=bool('.ckpt' in args.model_name_or_path),config=config, cache_dir='./model_cache')
+    #更改模型的device
     model.to(args.device)
-    #分布式并行训练，如果启用
+    #分布式并行训练，如果启用, 如果是多GPU，使用并行方式
     if args.local_rank != -1:
         model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.local_rank],
                                                           output_device=args.local_rank,

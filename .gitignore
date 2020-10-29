@@ -7,7 +7,6 @@ model_cache
 model_result
 data/rest15/cached_train*
 runs
-utils
 data/cosmetics
 __pycache__
 

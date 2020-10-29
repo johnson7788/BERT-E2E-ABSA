@@ -35,7 +35,7 @@ class InputExample(object):
     用于简单序列分类的单个训练/测试样本。
     """
 
-    def __init__(self, guid, text_a, text_b=None, label=None):
+    def __init__(self, guid, text_a, text_b=None, label=None, location=None):
         """构建 a InputExample.
 
         Args:
@@ -43,11 +43,13 @@ class InputExample(object):
             text_a: string. 第一个序列，没有tokenizer的text，对于单序列任务，只需要text_a
             text_b: (Optional) string. 第二个序列，没有tokenizer的text，只有在进行序列对任务时才需要指定
             label: (Optional) string. 样本的标签。这应该是指定用于训练和开发样本，但不用于测试样本。 测试样本不需要标签
+            location: (Optional) string. 单词的位置信息，是一个列表，[(start,end),(start,end),...]
         """
         self.guid = guid
         self.text_a = text_a
         self.text_b = text_b
         self.label = label
+        self.location = location
 
 
 class InputFeatures(object):
@@ -63,11 +65,12 @@ class InputFeatures(object):
 class SeqInputFeatures(object):
     """ABSA任务的一组数据特征"""
 
-    def __init__(self, input_ids, input_mask, segment_ids, label_ids, evaluate_label_ids):
+    def __init__(self, input_ids, input_mask, segment_ids, label_ids, locations, evaluate_label_ids):
         self.input_ids = input_ids
         self.input_mask = input_mask
         self.segment_ids = segment_ids
         self.label_ids = label_ids
+        self.locations = locations
         # mapping between word index and head token index
         self.evaluate_label_ids = evaluate_label_ids
 
@@ -231,7 +234,7 @@ class CosmeticsProcessor(DataProcessor):
         """
         :param data_dir:  例如 './data/rest15'
         :param set_type: 例如是train，或test或dev，组成train.txt
-        :param tagging_schema: 例如'BIEOS'
+        :param tagging_schema:  这里使用自定义的schema，'SENTIMENT'
         :return: 这个文件的所有行组成的examples，[InputExample(guid,label,text_a,text_b),...]
         """
         examples = []
@@ -249,6 +252,8 @@ class CosmeticsProcessor(DataProcessor):
                 words = []
                 # 存储每个单词对应的标签
                 tags = []
+                #存储每个单词的位置信息，在句子中的起始和结束位置， (start,end)
+                location = []
                 for tag_item in tag_string.split(' '):
                     eles = tag_item.split('=')
                     if len(eles) == 1:
@@ -261,14 +266,17 @@ class CosmeticsProcessor(DataProcessor):
                         word = ''.join((len(eles) - 2) * ['='])
                         tag = eles[-1]
                     words.append(word)
-                    tags.append(tag)
+                    tag = tag.replace("(", "").replace(")", "")
+                    tag_split = tag.split(',')
+                    if len(tag_split) != 3:
+                        raise Exception(f"注意，这条数据提取标签时格式有问题，请检查{line}")
+                    tags.append(tag_split[2])
+                    start, end = int(tag_split[0]), int(tag_split[1])
+                    location.append((start,end))
                 # eg: 'train-0'
                 guid = "%s-%s" % (set_type, sample_id)
-                text_a = ' '.join(words)
-                # label = [absa_label_vocab[tag] for tag in tags]
-                # gold_ts例如 ['O', 'O', 'S-NEG', 'O'] --> [(2, 2, 'NEG')]，整个词语的起始位置和情感，用于统计class_count
-                gold_ts = tag2ts(ts_tag_sequence=tags)
-                for (b, e, s) in gold_ts:
+                text_a = sent_string
+                for s in tags:
                     if s == 'POS':
                         class_count[0] += 1
                     if s == 'NEG':
@@ -276,9 +284,9 @@ class CosmeticsProcessor(DataProcessor):
                     if s == 'NEU':
                         class_count[2] += 1
                 # guid= 'train-0', text_a='Avoid this place !', label ['O', 'O', 'S-NEG', 'O']
-                examples.append(InputExample(guid=guid, text_a=text_a, text_b=None, label=tags))
+                examples.append(InputExample(guid=guid, text_a=text_a, text_b=None, label=tags, location=location))
                 sample_id += 1
-        print("%s 类别统计数量: %s" % (set_type, class_count))
+        print("%s 类别统计数量[POS, NEG, NEU]: %s" % (set_type, class_count))
         return examples
 
 def _truncate_seq_pair(tokens_a, tokens_b, max_length):
@@ -327,61 +335,32 @@ def convert_examples_to_seq_features(examples, label_list, tokenizer,
     max_seq_length = -1
     examples_tokenized = []
     for (ex_index, example) in enumerate(examples):
-        tokens_a = []
-        labels_a = []
-        evaluate_label_ids = []
         # 使用空格拆分句子到单词, 计算要进行评估的单词的位置信息evaluate_label_ids
         words = example.text_a.split(' ')
         tokens_a = words
         labels_a = example.label
-        wid, tid = 0, 0
-        for word, label in zip(words, example.label):
-        #     # 拆分成subwords，中文就没有必要了
-        #     subwords = tokenizer.tokenize(word)
-        #     tokens_a.extend(subwords)
-        #     if label != 'O':
-        #         labels_a.extend([label] + ['EQ'] * (len(subwords) - 1))
-        #     else:
-        #         labels_a.extend(['O'] * len(subwords))
-            evaluate_label_ids.append(tid)
-        #     # 拆分成subwords，拆分的话，单词会增多
-            wid += 1
-        #     # move the token pointer
-        #     tid += len(subwords)
-            tid += len(word)
-        # print(evaluate_label_ids)
-        # assert tid == len(tokens_a)
+        evaluate_label_ids = example.location
         evaluate_label_ids = np.array(evaluate_label_ids, dtype=np.int32)
-        examples_tokenized.append((tokens_a, labels_a, evaluate_label_ids))
+        locations_a = np.array(example.location, dtype=np.int32)
+        examples_tokenized.append((tokens_a, labels_a, evaluate_label_ids, locations_a))
         if len(tokens_a) > max_seq_length:
             max_seq_length = len(tokens_a)
     # 最长的序列+2，因为count on the [CLS] and [SEP]
     max_seq_length += 2
-    # max_seq_length = 128
-    for ex_index, (tokens_a, labels_a, evaluate_label_ids) in enumerate(examples_tokenized):
-        # tokens_a = tokenizer.tokenize(example.text_a)
-
-        # Account for [CLS] and [SEP] with "- 2"
-        # for sequence labeling, better not truncate the sequence
-        # if len(tokens_a) > max_seq_length - 2:
-        #    tokens_a = tokens_a[:(max_seq_length - 2)]
-        #    labels_a = labels_a
+    for ex_index, (tokens_a, labels_a, evaluate_label_ids, locations_a) in enumerate(examples_tokenized):
         # 末尾添加SEP的token
         tokens = tokens_a + [sep_token]
         segment_ids = [sequence_a_segment_id] * len(tokens)
-        # 加上最后个SEP的label，设为O
-        labels = labels_a + ['O']
         if cls_token_at_end:
-            # evaluate label ids not change
+            # 评估标签ID不变，以为在末尾加CLS_TOKEN
             tokens = tokens + [cls_token]
             segment_ids = segment_ids + [cls_token_segment_id]
-            labels = labels + ['O']
         else:
             tokens = [cls_token] + tokens
             segment_ids = [cls_token_segment_id] + segment_ids
-            labels = ['O'] + labels
             # 所有数+1，评估时id，向右移动一位
             evaluate_label_ids += 1
+            locations_a += 1
         # 把字转换成id，例如[101, 2057, 1010, 2045, 2020, 2176, 1997, 2149, 1010, 3369, 2012, 11501, 1010, 1996, 2173, 2001, 4064, 1010, 1998, 1996, 3095, 6051, 2066, 2057, 2020, 16625, 2006, 2068, 1998, 2027, 2020, 2200, 12726, 1012, 102]
         input_ids = tokenizer.convert_tokens_to_ids(tokens)
         # 输入的mask，例如[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
@@ -389,15 +368,13 @@ def convert_examples_to_seq_features(examples, label_list, tokenizer,
         # padding到最大序列长度Zero-pad up to the sequence length.
         padding_length = max_seq_length - len(input_ids)
         # print("Current labels:", labels), labels标签字符转换成id， 例如[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-        label_ids = [label_map[label] for label in labels]
+        label_ids = [label_map[label] for label in labels_a]
 
-        # pad the input sequence and the mask sequence
+        # 填充输入序列和mask序列, 从左边开始padding还是右边
         if pad_on_left:
             input_ids = ([pad_token] * padding_length) + input_ids
             input_mask = ([0 if mask_padding_with_zero else 1] * padding_length) + input_mask
             segment_ids = ([pad_token_segment_id] * padding_length) + segment_ids
-            # pad sequence tag 'O'
-            label_ids = ([0] * padding_length) + label_ids
             # right shift padding_length for evaluate_label_ids
             evaluate_label_ids += padding_length
         else:
@@ -408,13 +385,10 @@ def convert_examples_to_seq_features(examples, label_list, tokenizer,
             input_mask = input_mask + ([0 if mask_padding_with_zero else 1] * padding_length)
             # padding部分的segment id扩充
             segment_ids = segment_ids + ([pad_token_segment_id] * padding_length)
-            # 把padding部分的labels id都设为0，例如[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-            label_ids = label_ids + ([0] * padding_length)
         # 验证这些长度都达到了序列最大长度
         assert len(input_ids) == max_seq_length
         assert len(input_mask) == max_seq_length
         assert len(segment_ids) == max_seq_length
-        assert len(label_ids) == max_seq_length
         # 打印前5个样本
         if ex_index < 5:
             logger.info("*** 打印前5个样本示例 ***")
@@ -432,6 +406,7 @@ def convert_examples_to_seq_features(examples, label_list, tokenizer,
                              input_mask=input_mask,
                              segment_ids=segment_ids,
                              label_ids=label_ids,
+                             locations=locations_a,
                              evaluate_label_ids=evaluate_label_ids))
     print("最大序列长度是: ", max_seq_length)
     return features
