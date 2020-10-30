@@ -23,10 +23,13 @@ def db2local(save_file):
       f.write(content+ '\n')
   print(f"文件已生成{save_file}")
 
-def split_all(save_file):
+def split_all(save_file, train_rate=0.8, dev_rate=0.1, test_rate=0.1):
   """
   拆分成90%训练集，5%开发集和5%测试集
   :param save_file:
+  :param train_rate: float
+  :param dev_rate:
+  :param test_rate:
   :return:
   """
   random.seed(30)
@@ -34,9 +37,9 @@ def split_all(save_file):
     lines = f.readlines()
   random.shuffle(lines)
   total = len(lines)
-  train_num = int(total*0.9)
-  dev_num = int(total*0.05)
-  test_num = int(total*0.05)
+  train_num = int(total*train_rate)
+  dev_num = int(total*dev_rate)
+  test_num = int(total*test_rate)
   train_file = os.path.join(os.path.dirname(save_file),'train.txt')
   dev_file = os.path.join(os.path.dirname(save_file),'dev.txt')
   test_file = os.path.join(os.path.dirname(save_file),'test.txt')
@@ -69,6 +72,8 @@ def pre_process(save_file, new_file):
   id2class = {value:key for key,value in class2id.items()}
   with open(save_file, 'r') as f:
     lines = f.readlines()
+  #打印多少条样本
+  print_example = 10
   #总数据量
   total = 0
   with open(new_file, 'w') as f:
@@ -103,7 +108,10 @@ def pre_process(save_file, new_file):
       for word, tag in zip(line_chinese["content"], tags):
         des_line_suffix += f"{word}={tag} "
       des_line = des_line_prefix + des_line_suffix.strip()
-      print(des_line)
+      total += 1
+      if print_example > 0:
+        print(des_line)
+        print_example -= 1
       f.write(des_line + "\n")
   print(f"文件已生成{new_file}, 总数据量是{total}")
 
@@ -188,8 +196,8 @@ if __name__ == '__main__':
   save_file = "../data/cosmetics/all.txt"
   new_file = "../data/cosmetics/final_all.txt"
   # db2local(save_file)
-  # pre_process(save_file,new_file)
+  pre_process(save_file,new_file)
   only_sentiment_process(save_file,new_file)
-  split_all(new_file)
+  split_all(new_file,train_rate=0.8,dev_rate=0.1,test_rate=0.1)
   # check_data(save_file)
   clean_cache()
