@@ -1,5 +1,5 @@
 import argparse
-import os
+import os, time
 import torch
 import logging
 import random
@@ -406,7 +406,10 @@ def load_and_cache_examples(args, task, tokenizer, mode='train'):
 
 
 def main():
-
+    """
+    主函数
+    :return:
+    """
     args = init_args()
     if os.path.exists(args.output_dir) and os.listdir(args.output_dir) and args.do_train and not args.overwrite_output_dir:
         raise ValueError("Output directory ({}) already exists and is not empty. Use --overwrite_output_dir to overcome.".format(args.output_dir))
@@ -426,7 +429,11 @@ def main():
     args.device = device
 
     # 日志格式
-    logging.basicConfig(format='%(asctime)s - %(levelname)s - %(name)s -   %(message)s',
+    logdir = "log"
+    if not os.path.exists(logdir):
+        os.mkdir(logdir)
+    logfile = os.path.join(logdir, time.strftime("%Y%m%d%H%M",time.localtime()))
+    logging.basicConfig(filename=logfile,format='%(asctime)s - %(levelname)s - %(name)s -   %(message)s',
                         datefmt='%m/%d/%Y %H:%M:%S',
                         level=logging.INFO if args.local_rank in [-1, 0] else logging.WARN)
     # not using 16-bits training
@@ -537,11 +544,6 @@ def main():
         # 例如： bert-linear-rest15-finetune/checkpoint-1500
         best_ckpt_string = f"\n最好的checkpiont是{best_checkpoint}, accuracy值最大{best_f1}"
         logger.info(best_ckpt_string)
-        log_file_path = '%s/log.txt' % args.output_dir
-        log_file = open(log_file_path, 'a')
-        log_file.write("\tBest checkpoint: %s\n" % best_checkpoint)
-        log_file.close()
-
 
 if __name__ == '__main__':
     main()

@@ -1,0 +1,80 @@
+10/30/2020 13:01:56 - WARNING - __main__ -   Process rank: -1, device: cpu, n_gpu: 0, distributed training: False, 16-bits training: False
+10/30/2020 13:01:59 - INFO - transformers.configuration_utils -   loading configuration file https://s3.amazonaws.com/models.huggingface.co/bert/bert-base-chinese-config.json from cache at /Users/admin/.cache/torch/transformers/8a3b1cfe5da58286e12a0f5d7d182b8d6eca88c08e26c332ee3817548cf7e60a.f12a4f986e43d8b328f5b067a641064d67b91597567a06c7b122d1ca7dfd9741
+10/30/2020 13:01:59 - INFO - transformers.configuration_utils -   Model config {
+  "architectures": [
+    "BertForMaskedLM"
+  ],
+  "attention_probs_dropout_prob": 0.1,
+  "directionality": "bidi",
+  "finetuning_task": "cosmetics",
+  "hidden_act": "gelu",
+  "hidden_dropout_prob": 0.1,
+  "hidden_size": 768,
+  "initializer_range": 0.02,
+  "intermediate_size": 3072,
+  "layer_norm_eps": 1e-12,
+  "max_position_embeddings": 512,
+  "model_type": "bert",
+  "num_attention_heads": 12,
+  "num_hidden_layers": 12,
+  "num_labels": 3,
+  "output_attentions": false,
+  "output_hidden_states": false,
+  "pad_token_id": 0,
+  "pooler_fc_size": 768,
+  "pooler_num_attention_heads": 12,
+  "pooler_num_fc_layers": 3,
+  "pooler_size_per_head": 128,
+  "pooler_type": "first_token_transform",
+  "pruned_heads": {},
+  "torchscript": false,
+  "type_vocab_size": 2,
+  "use_bfloat16": false,
+  "vocab_size": 21128
+}
+
+10/30/2020 13:02:01 - INFO - transformers.tokenization_utils -   loading file https://s3.amazonaws.com/models.huggingface.co/bert/bert-base-chinese-vocab.txt from cache at ./model_cache/8a0c070123c1f794c42a29c6904beb7c1b8715741e235bee04aca2c7636fc83f.9b42061518a39ca00b8b52059fd2bede8daa613f8a8671500e518a8c29de8c00
+10/30/2020 13:02:02 - INFO - transformers.modeling_utils -   loading weights file https://s3.amazonaws.com/models.huggingface.co/bert/bert-base-chinese-pytorch_model.bin from cache at ./model_cache/b1b5e295889f2d0979ede9a78ad9cb5dc6a0e25ab7f9417b315f0a2c22f4683d.929717ca66a3ba9eb9ec2f85973c6398c54c38a4faa464636a491d7a705f7eb6
+10/30/2020 13:02:04 - INFO - transformers.modeling_utils -   Weights of BertABSATagger not initialized from pretrained model: ['tagger.Wxrz.weight', 'tagger.Wxrz.bias', 'tagger.Whrz.weight', 'tagger.Whrz.bias', 'tagger.Wxn.weight', 'tagger.Wxn.bias', 'tagger.Whn.weight', 'tagger.Whn.bias', 'tagger.LNx1.weight', 'tagger.LNx1.bias', 'tagger.LNh1.weight', 'tagger.LNh1.bias', 'tagger.LNx2.weight', 'tagger.LNx2.bias', 'tagger.LNh2.weight', 'tagger.LNh2.bias', 'classifier.weight', 'classifier.bias']
+10/30/2020 13:02:04 - INFO - transformers.modeling_utils -   Weights from pretrained model not used in BertABSATagger: ['cls.predictions.bias', 'cls.predictions.transform.dense.weight', 'cls.predictions.transform.dense.bias', 'cls.predictions.decoder.weight', 'cls.seq_relationship.weight', 'cls.seq_relationship.bias', 'cls.predictions.transform.LayerNorm.weight', 'cls.predictions.transform.LayerNorm.bias']
+10/30/2020 13:02:04 - INFO - __main__ -   在以下checkpoints上执行验证: ['bert-gru-cosmetics-finetune/checkpoint-100', 'bert-gru-cosmetics-finetune']
+10/30/2020 13:02:04 - INFO - __main__ -   开始在开发集上进行评估bert-gru-cosmetics-finetune/checkpoint-100
+10/30/2020 13:02:04 - INFO - transformers.configuration_utils -   loading configuration file bert-gru-cosmetics-finetune/checkpoint-100/config.json
+10/30/2020 13:02:04 - INFO - transformers.configuration_utils -   Model config {
+  "absa_type": "gru",
+  "architectures": [
+    "BertForMaskedLM"
+  ],
+  "attention_probs_dropout_prob": 0.1,
+  "directionality": "bidi",
+  "finetuning_task": "cosmetics",
+  "fix_tfm": 0,
+  "hidden_act": "gelu",
+  "hidden_dropout_prob": 0.1,
+  "hidden_size": 768,
+  "initializer_range": 0.02,
+  "intermediate_size": 3072,
+  "layer_norm_eps": 1e-12,
+  "max_position_embeddings": 512,
+  "model_type": "bert",
+  "num_attention_heads": 12,
+  "num_hidden_layers": 12,
+  "num_labels": 3,
+  "output_attentions": false,
+  "output_hidden_states": false,
+  "pad_token_id": 0,
+  "pooler_fc_size": 768,
+  "pooler_num_attention_heads": 12,
+  "pooler_num_fc_layers": 3,
+  "pooler_size_per_head": 128,
+  "pooler_type": "first_token_transform",
+  "pruned_heads": {},
+  "tfm_mode": "finetune",
+  "torchscript": false,
+  "type_vocab_size": 2,
+  "use_bfloat16": false,
+  "vocab_size": 21128
+}
+
+10/30/2020 13:02:04 - INFO - transformers.modeling_utils -   loading weights file bert-gru-cosmetics-finetune/checkpoint-100/pytorch_model.bin
+10/30/2020 13:02:05 - INFO - __main__ -   开始创建features file，并缓存./data/cosmetics
