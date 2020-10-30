@@ -205,8 +205,8 @@ def train(args, train_dataset, model, tokenizer):
             torch.nn.utils.clip_grad_norm_(model.parameters(), args.max_grad_norm)
             #损失累加, loss.item()从tensor变成数字
             tr_loss += loss.item()
-            # 记录损失到日志文件
-            if tr_loss !=0 and global_step !=0:
+            # 记录损失到日志文件, 没50步记录一次
+            if tr_loss != 0 and global_step !=0 and global_step % 50 == 0:
                 logger.info(f"第{global_step}个step的损失是: {tr_loss/(global_step)}")
             if (step + 1) % args.gradient_accumulation_steps == 0:
                 optimizer.step()
