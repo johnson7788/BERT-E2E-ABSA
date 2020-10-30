@@ -1,5 +1,5 @@
 import argparse
-import os
+import os, time
 import torch
 import logging
 import random
@@ -131,6 +131,7 @@ def init_args():
 
 def train(args, train_dataset, model, tokenizer):
     """ 训练模型 """
+    #保存SummaryWriter
     if args.local_rank in [-1, 0]:
         tb_writer = SummaryWriter()
     # 根据gpu数量计算batch_size
@@ -172,8 +173,10 @@ def train(args, train_dataset, model, tokenizer):
     model.zero_grad()
     # trange 进度条
     train_iterator = trange(int(args.num_train_epochs), desc="Epoch", disable=args.local_rank not in [-1, 0])
-    # set the seed number
-    set_seed(args)  # Added here for reproductibility (even between python 2 and 3)
+    #保存好的模型的文件夹列表
+    model_dirs = []
+    # 为了复现，设置随机数种子
+    set_seed(args)
     for _ in train_iterator:
         epoch_iterator = tqdm(train_dataloader, desc="Iteration", disable=args.local_rank not in [-1, 0])
         for step, batch in enumerate(epoch_iterator):
@@ -200,6 +203,8 @@ def train(args, train_dataset, model, tokenizer):
             torch.nn.utils.clip_grad_norm_(model.parameters(), args.max_grad_norm)
             #损失累加, loss.item()从tensor变成数字
             tr_loss += loss.item()
+            # 记录损失到日志文件
+            logger.info(f"第{global_step}个step的损失是: {tr_loss/global_step}")
             if (step + 1) % args.gradient_accumulation_steps == 0:
                 optimizer.step()
                 #更新学习率
@@ -219,14 +224,21 @@ def train(args, train_dataset, model, tokenizer):
                     logging_loss = tr_loss
 
                 if args.local_rank in [-1, 0] and args.save_steps > 0 and global_step % args.save_steps == 0:
-                    # Save model checkpoint per each N steps
+                    # 只保留最近的3个模型
+                    if len(model_dirs) > 2:
+                        # 删除最旧的模型
+                        import shutil
+                        shutil.rmtree(model_dirs[0])
+                        model_dirs.pop(0)
                     output_dir = os.path.join(args.output_dir, 'checkpoint-{}'.format(global_step))
+                    #把最新的模型加到列表
+                    model_dirs.append(output_dir)
                     if not os.path.exists(output_dir):
                         os.makedirs(output_dir)
                     model_to_save = model.module if hasattr(model, 'module') else model  # Take care of distributed/parallel training
                     model_to_save.save_pretrained(output_dir)
                     torch.save(args, os.path.join(output_dir, 'training_args.bin'))
-                    logger.info("Saving model checkpoint to %s", output_dir)
+                    logger.info("保存checkpoint到 %s", output_dir)
 
             if args.max_steps > 0 and global_step > args.max_steps:
                 epoch_iterator.close()
@@ -387,12 +399,15 @@ def load_and_cache_examples(args, task, tokenizer, mode='train'):
 
 
 def main():
-
+    """
+    主函数
+    :return:
+    """
     args = init_args()
     if os.path.exists(args.output_dir) and os.listdir(args.output_dir) and args.do_train and not args.overwrite_output_dir:
         raise ValueError("Output directory ({}) already exists and is not empty. Use --overwrite_output_dir to overcome.".format(args.output_dir))
 
-    # Setup CUDA, GPU & distributed training
+    # 设置CUDA，GPU和分布式训练, local_rank == -1 表示不使用分布式训练
     if args.local_rank == -1 or args.no_cuda:
         device = torch.device("cuda" if torch.cuda.is_available() and not args.no_cuda else "cpu")
         args.n_gpu = torch.cuda.device_count()
@@ -406,8 +421,12 @@ def main():
 
     args.device = device
 
-    # Setup logging
-    logging.basicConfig(format='%(asctime)s - %(levelname)s - %(name)s -   %(message)s',
+    # 日志格式
+    logdir = "log"
+    if not os.path.exists(logdir):
+        os.mkdir(logdir)
+    logfile = os.path.join(logdir, time.strftime("%Y%m%d%H%M",time.localtime()))
+    logging.basicConfig(filename=logfile,format='%(asctime)s - %(levelname)s - %(name)s -   %(message)s',
                         datefmt='%m/%d/%Y %H:%M:%S',
                         level=logging.INFO if args.local_rank in [-1, 0] else logging.WARN)
     # not using 16-bits training
@@ -420,17 +439,17 @@ def main():
     #准备数据处理部分
     args.task_name = args.task_name.lower()
     if args.task_name not in processors:
-        raise ValueError("Task not found: %s" % args.task_name)
+        raise ValueError("在我们自定义的任务列表中没有发现任务: %s" % args.task_name)
     processor = processors[args.task_name]()
     # output_mode 是 classification，表示分类
     args.output_mode = output_modes[args.task_name]
     label_list = processor.get_labels(args.tagging_schema)
     num_labels = len(label_list)
-
+    #分布式训练设置
     if args.local_rank not in [-1, 0]:
         torch.distributed.barrier()
 
-    #初始化预训练模型,args.model_type是bert或xlnet等
+    #初始化预训练模型,args.model_type是bert或xlnet等, 注意cache_dir设置
     args.model_type = args.model_type.lower()
     config_class, model_class, tokenizer_class = MODEL_CLASSES[args.model_type]
     config = config_class.from_pretrained(args.config_name if args.config_name else args.model_name_or_path,
@@ -440,11 +459,13 @@ def main():
     #absa_type 是最后用linear还是crf，还是rnn或self-attention
     config.absa_type = args.absa_type
     config.tfm_mode = args.tfm_mode
+    # 是否固定bert参数
     config.fix_tfm = args.fix_tfm
     #加载，使用自定义的预训练模型，并缓存到model_cache， 例如BertABSATagger
     model = model_class.from_pretrained(args.model_name_or_path, from_tf=bool('.ckpt' in args.model_name_or_path),config=config, cache_dir='./model_cache')
+    #更改模型的device
     model.to(args.device)
-    #分布式并行训练，如果启用
+    #分布式并行训练，如果启用, 如果是多GPU，使用并行方式
     if args.local_rank != -1:
         model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.local_rank],
                                                           output_device=args.local_rank,
@@ -456,7 +477,7 @@ def main():
     if args.do_train:
         train_dataset, train_evaluate_label_ids = load_and_cache_examples(args, args.task_name, tokenizer, mode='train')
         global_step, tr_loss = train(args, train_dataset, model, tokenizer)
-        logger.info("训练完成")
+        logger.info(f"训练完成steps {global_step}, 损失为 {tr_loss}")
 
     if args.do_train and (args.local_rank == -1 or dist.get_rank() == 0):
         #创建输出文件夹，保存模型
@@ -496,13 +517,13 @@ def main():
             if global_step == 'finetune' or global_step == 'train' or global_step == 'fix' or global_step == 'overfit':
                 continue
             #验证集评估
-            logger.info("开始在开发集上进行评估")
+            logger.info(f"开始在开发集上进行评估{checkpoint}")
             model = model_class.from_pretrained(checkpoint)
             model.to(args.device)
             dev_result = evaluate(args, model, tokenizer, mode='dev', prefix=global_step)
 
             # 使用micro-f1 作为模型选择的标准
-            if int(global_step) > 1000 and dev_result['micro-f1'] > best_f1:
+            if int(global_step) > 10 and dev_result['micro-f1'] > best_f1:
                 best_f1 = dev_result['micro-f1']
                 best_checkpoint = checkpoint
             dev_result = dict((k + '_{}'.format(global_step), v) for k, v in dev_result.items())
