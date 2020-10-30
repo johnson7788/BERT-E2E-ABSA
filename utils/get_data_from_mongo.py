@@ -192,7 +192,7 @@ def clean_cache():
   """
   os.system("rm -rf ../data/cosmetics/cached*")
   os.system("rm -rf ../log/*")
-  os.system("rm -rf ../run/*")
+  os.system("rm -rf ../runs/*")
 
 if __name__ == '__main__':
   save_file = "../data/cosmetics/all.txt"
