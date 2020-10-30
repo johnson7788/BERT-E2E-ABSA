@@ -229,6 +229,7 @@ def train(args, train_dataset, model, tokenizer):
                         # 删除最旧的模型
                         import shutil
                         shutil.rmtree(model_dirs[0])
+                        model_dirs.pop(0)
                     output_dir = os.path.join(args.output_dir, 'checkpoint-{}'.format(global_step))
                     #把最新的模型加到列表
                     model_dirs.append(output_dir)
