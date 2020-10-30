@@ -557,20 +557,29 @@ def match_ts(gold_ts_sequence, pred_ts_sequence):
     """
     # positive, negative and neutral
     tag2tagid = {'POS': 0, 'NEG': 1, 'NEU': 2}
+    # 返回的结果是 hit_count[POS,NEG,NEU] 每个的匹配情况, sentiment_hit_count 这个只计算情感匹配到的,sentiment_total是统计的所有的预测出来的部分
     hit_count, gold_count, pred_count = np.zeros(3), np.zeros(3), np.zeros(3)
+    sentiment_total, sentiment_hit_count = 0,0
     for t in gold_ts_sequence:
-        # print(t)
+        #ts_tag 情感
         ts_tag = t[2]
         tid = tag2tagid[ts_tag]
         gold_count[tid] += 1
-    for t in pred_ts_sequence:
+    for idx,t in enumerate(pred_ts_sequence):
         ts_tag = t[2]
         tid = tag2tagid[ts_tag]
         # 如果（begin，end，sentiment）完全匹配，算是hit一个
         if t in gold_ts_sequence:
             hit_count[tid] += 1
+        # 只是预测的情感匹配，单词不完全匹配也可以, 只有预测出相同的个数的情感的才计算
         pred_count[tid] += 1
-    return hit_count, gold_count, pred_count
+    if len(pred_ts_sequence) == len(gold_ts_sequence):
+        sentiment_total += len(pred_ts_sequence)
+        pred_sentiments = [i[2] for i in pred_ts_sequence]
+        gold_sentiments = [i[2] for i in gold_ts_sequence]
+        if pred_sentiments == gold_sentiments:
+            sentiment_hit_count +=1
+    return hit_count, gold_count, pred_count, sentiment_total, sentiment_hit_count
 
 
 def compute_metrics_absa(preds, labels, all_evaluate_label_ids, tagging_schema):
@@ -601,6 +610,9 @@ def compute_metrics_absa(preds, labels, all_evaluate_label_ids, tagging_schema):
     n_tp_ts, n_gold_ts, n_pred_ts = np.zeros(3), np.zeros(3), np.zeros(3)
     # 初始化 precision, recall and f1 for aspect-based sentiment analysis
     ts_precision, ts_recall, ts_f1 = np.zeros(3), np.zeros(3), np.zeros(3)
+    #统计所有预测出的情感和预测正确的情感
+    sentiment_totals = 0
+    sentiment_hit_counts = 0
     # 样本总数
     n_samples = len(all_evaluate_label_ids)
     pred_y, gold_y = [], []
@@ -631,7 +643,7 @@ def compute_metrics_absa(preds, labels, all_evaluate_label_ids, tagging_schema):
         # 获取预测和真实的对应的单词和感情, g_ts_sequence, eg: [(1, 3, 'POS')]  p_ts_sequence, eg: []
         g_ts_sequence, p_ts_sequence = tag2ts(ts_tag_sequence=gold_tags), tag2ts(ts_tag_sequence=pred_tags)
         # 对比g_ts_sequence, p_ts_sequence结果
-        hit_ts_count, gold_ts_count, pred_ts_count = match_ts(gold_ts_sequence=g_ts_sequence,
+        hit_ts_count, gold_ts_count, pred_ts_count, sentiment_total, sentiment_hit_count = match_ts(gold_ts_sequence=g_ts_sequence,
                                                               pred_ts_sequence=p_ts_sequence)
         # 统计下所有结果, n_tp_ts eg: [231.  99.   6.] 元素分别表示【'POS': 0, 'NEG': 1, 'NEU': 2】匹配的个数
         n_tp_ts += hit_ts_count
@@ -639,6 +651,8 @@ def compute_metrics_absa(preds, labels, all_evaluate_label_ids, tagging_schema):
         n_gold_ts += gold_ts_count
         # n_pred_ts eg: [365. 181.  20.]  表示预测得到的POS，NEG NEU的个数
         n_pred_ts += pred_ts_count
+        sentiment_totals += sentiment_total
+        sentiment_hit_counts += sentiment_hit_count
         # 统计下类别数量class_count [327. 186.  34.]，和n_gold_ts一样
         for (b, e, s) in g_ts_sequence:
             if s == 'POS':
@@ -674,7 +688,8 @@ def compute_metrics_absa(preds, labels, all_evaluate_label_ids, tagging_schema):
     micro_r = float(n_tp_total) / (n_g_total + SMALL_POSITIVE_CONST)
     # 计算micro f1
     micro_f1 = 2 * micro_p * micro_r / (micro_p + micro_r + SMALL_POSITIVE_CONST)
-    scores = {'macro-f1': macro_f1, 'precision': micro_p, "recall": micro_r, "micro-f1": micro_f1}
+    sentiment_accuracy = float(sentiment_hit_counts) / float(sentiment_totals)
+    scores = {'macro-f1': macro_f1, 'precision': micro_p, "recall": micro_r, "micro-f1": micro_f1, "sentiment_accuracy":sentiment_accuracy}
     return scores
 
 
