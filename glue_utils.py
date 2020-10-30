@@ -370,16 +370,11 @@ def convert_examples_to_seq_features(examples, label_list, tokenizer,
         # padding到最大序列长度Zero-pad up to the sequence length.
         padding_length = max_seq_length - len(input_ids)
         # print("Current labels:", labels), labels标签字符转换成id， 例如[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-<<<<<<< HEAD
-        label_ids = [label_map[label] for label in labels_a]
-=======
         single_label = [label_map[label] for label in labels_a]
         #随便取一个临时数值9作为初始，最后计算时也不会用到这个，只是占位
         label_ids = [9] * len(input_ids)
         #修改固定位置为这个label
         label_ids[locations_a[0][0]:locations_a[0][1]] = single_label * (locations_a[0][1]-locations_a[0][0])
->>>>>>> 37e30cd80906955e3c384669e9c5307a6d93c03e
-
         # 填充输入序列和mask序列, 从左边开始padding还是右边
         if pad_on_left:
             input_ids = ([pad_token] * padding_length) + input_ids
