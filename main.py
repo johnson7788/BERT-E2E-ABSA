@@ -302,7 +302,7 @@ def evaluate(args, model, tokenizer, mode, prefix=""):
                 for input, location in zip(pre_logits, locations):
                     new = input[location[0][0]:location[0][1], :]
                     final = torch.sum(input=new, dim=0)
-                    batch_result.append(final.numpy())
+                    batch_result.append(final.cpu().numpy())
                 logits = torch.tensor(batch_result)
                 crf_logits.append(logits)
                 crf_mask.append(batch[1])
