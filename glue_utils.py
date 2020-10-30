@@ -367,12 +367,10 @@ def convert_examples_to_seq_features(examples, label_list, tokenizer,
         if mask_padding_with_zero:
             input_mask = [0] * len(input_ids)
             input_mask[locations_a[0][0]:locations_a[0][1]] = [1] * (locations_a[0][1]-locations_a[0][0])
-        # labels 也转换成每个要关注词语的labels个数
-        labels = labels_a * (locations_a[0][1]-locations_a[0][0])
         # padding到最大序列长度Zero-pad up to the sequence length.
         padding_length = max_seq_length - len(input_ids)
         # print("Current labels:", labels), labels标签字符转换成id， 例如[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
-        label_ids = [label_map[label] for label in labels]
+        label_ids = [label_map[label] for label in labels_a]
 
         # 填充输入序列和mask序列, 从左边开始padding还是右边
         if pad_on_left:
