@@ -4,8 +4,8 @@ bert-linear-rest15-finetune/checkpoint*
 bert-*
 cache
 model_cache
-venv
 model_result
+log
 data/rest15/cached_train*
 runs
 data/cosmetics
