@@ -191,6 +191,8 @@ def clean_cache():
   :return:
   """
   os.system("rm -rf ../data/cosmetics/cached*")
+  os.system("rm -rf ../log/*")
+  os.system("rm -rf ../run/*")
 
 if __name__ == '__main__':
   save_file = "../data/cosmetics/all.txt"
