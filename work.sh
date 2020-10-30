@@ -2,9 +2,9 @@
 #TASK_NAME="rest15"
 TASK_NAME="cosmetics"
 #ABSA_HOME="./bert-linear-rest15-finetune"
-ABSA_HOME="./bert-gru-cosmetics-finetune"
+ABSA_HOME="./bert-gru-cosmetics-finetune_full"
 CUDA_VISIBLE_DEVICES=0 python work.py --absa_home ${ABSA_HOME} \
-                      --ckpt ${ABSA_HOME}/checkpoint-1500 \
+                      --ckpt ${ABSA_HOME}/checkpoint-1300 \
                       --model_type bert \
                       --data_dir ./data/${TASK_NAME} \
                       --task_name ${TASK_NAME} \
