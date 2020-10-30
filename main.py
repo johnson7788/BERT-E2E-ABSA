@@ -470,7 +470,7 @@ def main():
     if args.do_train:
         train_dataset, train_evaluate_label_ids = load_and_cache_examples(args, args.task_name, tokenizer, mode='train')
         global_step, tr_loss = train(args, train_dataset, model, tokenizer)
-        logger.info("训练完成")
+        logger.info(f"训练完成steps {global_step}, 损失为 {tr_loss}")
 
     if args.do_train and (args.local_rank == -1 or dist.get_rank() == 0):
         #创建输出文件夹，保存模型
