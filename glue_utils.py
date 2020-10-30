@@ -606,7 +606,7 @@ def compute_metrics_absa(preds, labels, all_evaluate_label_ids, tagging_schema):
         gold_tags.append(gold_tag)
         if pred_labels == gold_labels:
             correct_labels += 1
-    accuracy = correct_labels/n_samples
+    accuracy = float(correct_labels)/float(n_samples)
     scores = {'accuracy': accuracy, 'predict_tag': pred_tags, 'ground_truth':gold_tags}
     return scores
 
