@@ -5,6 +5,7 @@ bert-*
 cache
 model_cache
 model_result
+log
 data/rest15/cached_train*
 runs
 data/cosmetics
