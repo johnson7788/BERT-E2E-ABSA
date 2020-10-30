@@ -173,11 +173,19 @@ def check_data(save_file):
       print(line_chinese)
   print(f"没有aspect的数量是{len(without_aspect)}")
 
+def clean_cache():
+  """
+  删除../data/cosmetics/cached* 文件
+  :return:
+  """
+  os.system("rm -rf ../data/cosmetics/cached*")
+
 if __name__ == '__main__':
   save_file = "../data/cosmetics/all.txt"
   new_file = "../data/cosmetics/final_all.txt"
   # db2local(save_file)
   # pre_process(save_file,new_file)
-  only_sentiment_process(save_file,new_file)
-  split_all(new_file)
+  # only_sentiment_process(save_file,new_file)
+  # split_all(new_file)
   # check_data(save_file)
+  clean_cache()
