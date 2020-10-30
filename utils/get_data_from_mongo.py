@@ -185,7 +185,7 @@ if __name__ == '__main__':
   new_file = "../data/cosmetics/final_all.txt"
   # db2local(save_file)
   # pre_process(save_file,new_file)
-  # only_sentiment_process(save_file,new_file)
-  # split_all(new_file)
+  only_sentiment_process(save_file,new_file)
+  split_all(new_file)
   # check_data(save_file)
   clean_cache()
