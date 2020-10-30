@@ -197,6 +197,7 @@ class ABSAProcessor(DataProcessor):
         print("%s 类别统计数量: %s" % (set_type, class_count))
         return examples
 
+
 class CosmeticsProcessor(DataProcessor):
     """
     处理自定定义的数据
@@ -252,12 +253,12 @@ class CosmeticsProcessor(DataProcessor):
                 words = []
                 # 存储每个单词对应的标签
                 tags = []
-                #存储每个单词的位置信息，在句子中的起始和结束位置， (start,end)
+                # 存储每个单词的位置信息，在句子中的起始和结束位置， (start,end)
                 location = []
                 for tag_item in tag_string.split(' '):
                     eles = tag_item.split('=')
                     if len(eles) == 1:
-                        #对于是空格的地方，过滤掉
+                        # 对于是空格的地方，过滤掉
                         continue
                     elif len(eles) == 2:
                         word, tag = eles
@@ -272,7 +273,7 @@ class CosmeticsProcessor(DataProcessor):
                         raise Exception(f"注意，这条数据提取标签时格式有问题，请检查{line}")
                     tags.append(tag_split[2])
                     start, end = int(tag_split[0]), int(tag_split[1])
-                    location.append((start,end))
+                    location.append((start, end))
                 # eg: 'train-0'
                 guid = "%s-%s" % (set_type, sample_id)
                 text_a = sent_string
@@ -288,6 +289,7 @@ class CosmeticsProcessor(DataProcessor):
                 sample_id += 1
         print("%s 类别统计数量[POS, NEG, NEU]: %s" % (set_type, class_count))
         return examples
+
 
 def _truncate_seq_pair(tokens_a, tokens_b, max_length):
     """Truncates a sequence pair in place to the maximum length."""
@@ -366,15 +368,15 @@ def convert_examples_to_seq_features(examples, label_list, tokenizer,
         # 修正mask，只关注要分类的词的字的位置，这个位置为1， 其它位置为0
         if mask_padding_with_zero:
             input_mask = [0] * len(input_ids)
-            input_mask[locations_a[0][0]:locations_a[0][1]] = [1] * (locations_a[0][1]-locations_a[0][0])
+            input_mask[locations_a[0][0]:locations_a[0][1]] = [1] * (locations_a[0][1] - locations_a[0][0])
         # padding到最大序列长度Zero-pad up to the sequence length.
         padding_length = max_seq_length - len(input_ids)
         # print("Current labels:", labels), labels标签字符转换成id， 例如[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
         single_label = [label_map[label] for label in labels_a]
-        #随便取一个临时数值9作为初始，最后计算时也不会用到这个，只是占位
+        # 随便取一个临时数值9作为初始，最后计算时也不会用到这个，只是占位
         label_ids = [9] * len(input_ids)
-        #修改固定位置为这个label
-        label_ids[locations_a[0][0]:locations_a[0][1]] = single_label * (locations_a[0][1]-locations_a[0][0])
+        # 修改固定位置为这个label
+        label_ids[locations_a[0][0]:locations_a[0][1]] = single_label * (locations_a[0][1] - locations_a[0][0])
         # 填充输入序列和mask序列, 从左边开始padding还是右边
         if pad_on_left:
             input_ids = ([pad_token] * padding_length) + input_ids
@@ -576,90 +578,36 @@ def compute_metrics_absa(preds, labels, all_evaluate_label_ids, tagging_schema):
                             'B-NEG': 4, 'I-NEG': 5, 'B-NEU': 6, 'I-NEU': 7}
     elif tagging_schema == 'OT':
         absa_label_vocab = {'O': 0, 'EQ': 1, 'T-POS': 2, 'T-NEG': 3, 'T-NEU': 4}
+    elif tagging_schema == 'SENTIMENT':
+        absa_label_vocab = {"NEG": 0, "NEU": 1, "POS": 2, }
     else:
-        raise Exception("Invalid tagging schema %s..." % tagging_schema)
+        raise Exception("评估时提供的tagging schema无效 %s..." % tagging_schema)
     absa_id2tag = {}
     for k in absa_label_vocab:
         v = absa_label_vocab[k]
         absa_id2tag[v] = k
-    # 初始化 true postive的数量，gold standard，预期的目标情感
-    n_tp_ts, n_gold_ts, n_pred_ts = np.zeros(3), np.zeros(3), np.zeros(3)
-    # 初始化 precision, recall and f1 for aspect-based sentiment analysis
-    ts_precision, ts_recall, ts_f1 = np.zeros(3), np.zeros(3), np.zeros(3)
-    # 样本总数
+    # 初始化
+    correct_labels = 0
+    pred_tags = []
+    gold_tags = []
     n_samples = len(all_evaluate_label_ids)
-    pred_y, gold_y = [], []
-    class_count = np.zeros(3)
     # 对每个样本进行循环
     for i in range(n_samples):
         # 第i个样本的真实的单词数  eg: [1 2 3 4]
         evaluate_label_ids = all_evaluate_label_ids[i]
         # 找出单词的预测的标签,  eg: [0 0 0 0]
-        pred_labels = preds[i][evaluate_label_ids]
+        pred_labels = preds[i]
         # 真实的单词的标签, 例如 [0 2 3 4]
-        gold_labels = labels[i][evaluate_label_ids]
-        # 确认长度是一样的
-        assert len(pred_labels) == len(gold_labels)
-        # 把id转换成tag, pred_tags eg: ['O', 'O', 'O', 'O'] ;  gold_tags eg: ['O', 'B-POS', 'I-POS', 'E-POS']
-        pred_tags = [absa_id2tag[label] for label in pred_labels]
-        gold_tags = [absa_id2tag[label] for label in gold_labels]
-        #
-        if tagging_schema == 'OT':
-            gold_tags = ot2bieos_ts(gold_tags)
-            pred_tags = ot2bieos_ts(pred_tags)
-        elif tagging_schema == 'BIO':
-            gold_tags = ot2bieos_ts(bio2ot_ts(gold_tags))
-            pred_tags = ot2bieos_ts(bio2ot_ts(pred_tags))
-        else:
-            # current tagging schema is BIEOS, do nothing
-            pass
-        # 获取预测和真实的对应的单词和感情, g_ts_sequence, eg: [(1, 3, 'POS')]  p_ts_sequence, eg: []
-        g_ts_sequence, p_ts_sequence = tag2ts(ts_tag_sequence=gold_tags), tag2ts(ts_tag_sequence=pred_tags)
-        # 对比g_ts_sequence, p_ts_sequence结果
-        hit_ts_count, gold_ts_count, pred_ts_count = match_ts(gold_ts_sequence=g_ts_sequence,
-                                                              pred_ts_sequence=p_ts_sequence)
-        # 统计下所有结果, n_tp_ts eg: [231.  99.   6.] 元素分别表示【'POS': 0, 'NEG': 1, 'NEU': 2】匹配的个数
-        n_tp_ts += hit_ts_count
-        #  n_gold_ts eg： [327. 186.  34.]， 表示真实的POS，NEG NEU的个数
-        n_gold_ts += gold_ts_count
-        # n_pred_ts eg: [365. 181.  20.]  表示预测得到的POS，NEG NEU的个数
-        n_pred_ts += pred_ts_count
-        # 统计下类别数量class_count [327. 186.  34.]，和n_gold_ts一样
-        for (b, e, s) in g_ts_sequence:
-            if s == 'POS':
-                class_count[0] += 1
-            if s == 'NEG':
-                class_count[1] += 1
-            if s == 'NEU':
-                class_count[2] += 1
-    for i in range(3):
-        n_ts = n_tp_ts[i]
-        n_g_ts = n_gold_ts[i]
-        n_p_ts = n_pred_ts[i]
-        # 分类正确的正样本除以所有被分类为正确的样本
-        ts_precision[i] = float(n_ts) / float(n_p_ts + SMALL_POSITIVE_CONST)
-        # 分类正确的正样本除以所有真正的正样本
-        ts_recall[i] = float(n_ts) / float(n_g_ts + SMALL_POSITIVE_CONST)
-        ts_f1[i] = 2 * ts_precision[i] * ts_recall[i] / (ts_precision[i] + ts_recall[i] + SMALL_POSITIVE_CONST)
-    # 平均后得到macro f1
-    macro_f1 = ts_f1.mean()
-
-    # calculate micro-average scores for ts task
-    # TP
-    n_tp_total = sum(n_tp_ts)
-    # TP + FN
-    n_g_total = sum(n_gold_ts)
-    print("class_count:", class_count)
-
-    # TP + FP
-    n_p_total = sum(n_pred_ts)
-    # micro_p micro的精确率
-    micro_p = float(n_tp_total) / (n_p_total + SMALL_POSITIVE_CONST)
-    # micro_r  micro的召回率
-    micro_r = float(n_tp_total) / (n_g_total + SMALL_POSITIVE_CONST)
-    # 计算micro f1
-    micro_f1 = 2 * micro_p * micro_r / (micro_p + micro_r + SMALL_POSITIVE_CONST)
-    scores = {'macro-f1': macro_f1, 'precision': micro_p, "recall": micro_r, "micro-f1": micro_f1}
+        gold_labels = labels[i][evaluate_label_ids[0][0]]
+        # 把id转换成tag
+        pred_tag = absa_id2tag[pred_labels]
+        gold_tag = absa_id2tag[gold_labels]
+        pred_tags.append(pred_tag)
+        gold_tags.append(gold_tag)
+        if pred_labels == gold_labels:
+            correct_labels += 1
+    accuracy = correct_labels/n_samples
+    scores = {'accuracy': accuracy, 'predict_tag': pred_tags, 'ground_truth':gold_tags}
     return scores
 
 

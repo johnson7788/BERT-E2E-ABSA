@@ -293,9 +293,17 @@ def evaluate(args, model, tokenizer, mode, prefix=""):
                 outputs = model(**inputs)
                 # logits的形状 (batch_size, seq_len, label_size)
                 # 这里的损失是masked的损失
-                tmp_eval_loss, logits = outputs[:2]
+                tmp_eval_loss, pre_logits = outputs[:2]
                 eval_loss += tmp_eval_loss.mean().item()
                 # 收集logits
+                # 只取对应位置的logits,如果有多个词，那么拼接在一起，因为每个词都是softmax的结果
+                locations = batch[4]
+                batch_result = []
+                for input, location in zip(pre_logits, locations):
+                    new = input[location[0][0]:location[0][1], :]
+                    final = torch.sum(input=new, dim=0)
+                    batch_result.append(final.numpy())
+                logits = torch.tensor(batch_result)
                 crf_logits.append(logits)
                 crf_mask.append(batch[1])
             #评估完一个step，步数加1
@@ -308,11 +316,11 @@ def evaluate(args, model, tokenizer, mode, prefix=""):
             else:
                 preds = np.append(preds, logits.detach().cpu().numpy(), axis=0)
                 out_label_ids = np.append(out_label_ids, inputs['labels'].detach().cpu().numpy(), axis=0)
-        #计算平均损失
+        #计算平均损失, 总损失/总步数
         eval_loss = eval_loss / nb_eval_steps
         # argmax在最后一个维度上的操作
         if model.tagger_config.absa_type != 'crf':
-            # greedy decoding
+            # greedy decoding, 对最后一维取max
             preds = np.argmax(preds, axis=-1)
         else:
             # viterbi 算法 for CRF-based model
@@ -502,14 +510,14 @@ def main():
             if global_step == 'finetune' or global_step == 'train' or global_step == 'fix' or global_step == 'overfit':
                 continue
             #验证集评估
-            logger.info("开始在开发集上进行评估")
+            logger.info(f"开始在开发集上进行评估{checkpoint}")
             model = model_class.from_pretrained(checkpoint)
             model.to(args.device)
             dev_result = evaluate(args, model, tokenizer, mode='dev', prefix=global_step)
 
             # 使用micro-f1 作为模型选择的标准
-            if int(global_step) > 1000 and dev_result['micro-f1'] > best_f1:
-                best_f1 = dev_result['micro-f1']
+            if int(global_step) > 1000 and dev_result['accuracy'] > best_f1:
+                best_f1 = dev_result['accuracy']
                 best_checkpoint = checkpoint
             dev_result = dict((k + '_{}'.format(global_step), v) for k, v in dev_result.items())
             results.update(dev_result)
@@ -519,50 +527,11 @@ def main():
             test_result = dict((k + '_{}'.format(global_step), v) for k, v in test_result.items())
             test_results.update(test_result)
         # 例如： bert-linear-rest15-finetune/checkpoint-1500
-        best_ckpt_string = "\nThe best checkpoint is %s" % best_checkpoint
+        best_ckpt_string = f"\n最好的checkpiont是{best_checkpoint}, accuracy值最大{best_f1}"
         logger.info(best_ckpt_string)
-        dev_f1_values, dev_loss_values = [], []
-        for k in results:
-            v = results[k]
-            if 'micro-f1' in k:
-                dev_f1_values.append((k, v))
-            if 'eval_loss' in k:
-                dev_loss_values.append((k, v))
-        test_f1_values, test_loss_values = [], []
-        for k in test_results:
-            v = test_results[k]
-            if 'micro-f1' in k:
-                test_f1_values.append((k, v))
-            if 'eval_loss' in k:
-                test_loss_values.append((k, v))
-        # 把每步的dev和test集的验证结果写到日志中
         log_file_path = '%s/log.txt' % args.output_dir
         log_file = open(log_file_path, 'a')
-        log_file.write("\tValidation:\n")
-        for (test_f1_k, test_f1_v), (test_loss_k, test_loss_v), (dev_f1_k, dev_f1_v), (dev_loss_k, dev_loss_v) in zip(
-                test_f1_values, test_loss_values, dev_f1_values, dev_loss_values):
-            global_step = int(test_f1_k.split('_')[-1])
-            if not args.overfit and global_step <= 1000:
-                continue
-            print('test-%s: %.5lf, test-%s: %.5lf, dev-%s: %.5lf, dev-%s: %.5lf' % (test_f1_k,
-                                                                                    test_f1_v, test_loss_k, test_loss_v,
-                                                                                    dev_f1_k, dev_f1_v, dev_loss_k,
-                                                                                    dev_loss_v))
-            validation_string = '\t\tdev-%s: %.5lf, dev-%s: %.5lf' % (dev_f1_k, dev_f1_v, dev_loss_k, dev_loss_v)
-            log_file.write(validation_string+'\n')
-
-        n_times = args.max_steps // args.save_steps + 1
-        for i in range(1, n_times):
-            step = i * 100
-            log_file.write('\tStep %s:\n' % step)
-            precision = test_results['precision_%s' % step]
-            recall = test_results['recall_%s' % step]
-            micro_f1 = test_results['micro-f1_%s' % step]
-            macro_f1 = test_results['macro-f1_%s' % step]
-            log_file.write('\t\tprecision: %.4lf, recall: %.4lf, micro-f1: %.4lf, macro-f1: %.4lf\n'
-                           % (precision, recall, micro_f1, macro_f1))
         log_file.write("\tBest checkpoint: %s\n" % best_checkpoint)
-        log_file.write('******************************************\n')
         log_file.close()
 
 
