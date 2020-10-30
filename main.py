@@ -173,6 +173,8 @@ def train(args, train_dataset, model, tokenizer):
     model.zero_grad()
     # trange 进度条
     train_iterator = trange(int(args.num_train_epochs), desc="Epoch", disable=args.local_rank not in [-1, 0])
+    #保存好的模型的文件夹列表
+    model_dirs = []
     # 为了复现，设置随机数种子
     set_seed(args)
     for _ in train_iterator:
@@ -222,14 +224,20 @@ def train(args, train_dataset, model, tokenizer):
                     logging_loss = tr_loss
 
                 if args.local_rank in [-1, 0] and args.save_steps > 0 and global_step % args.save_steps == 0:
-                    # Save model checkpoint per each N steps
+                    # 只保留最近的3个模型
+                    if len(model_dirs) > 2:
+                        # 删除最旧的模型
+                        import shutil
+                        shutil.rmtree(model_dirs[0])
                     output_dir = os.path.join(args.output_dir, 'checkpoint-{}'.format(global_step))
+                    #把最新的模型加到列表
+                    model_dirs.append(output_dir)
                     if not os.path.exists(output_dir):
                         os.makedirs(output_dir)
                     model_to_save = model.module if hasattr(model, 'module') else model  # Take care of distributed/parallel training
                     model_to_save.save_pretrained(output_dir)
                     torch.save(args, os.path.join(output_dir, 'training_args.bin'))
-                    logger.info("Saving model checkpoint to %s", output_dir)
+                    logger.info("保存checkpoint到 %s", output_dir)
 
             if args.max_steps > 0 and global_step > args.max_steps:
                 epoch_iterator.close()
