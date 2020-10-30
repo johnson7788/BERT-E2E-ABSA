@@ -516,7 +516,7 @@ def main():
             dev_result = evaluate(args, model, tokenizer, mode='dev', prefix=global_step)
 
             # 使用micro-f1 作为模型选择的标准
-            if int(global_step) > 1000 and dev_result['accuracy'] > best_f1:
+            if int(global_step) > 10 and dev_result['accuracy'] > best_f1:
                 best_f1 = dev_result['accuracy']
                 best_checkpoint = checkpoint
             dev_result = dict((k + '_{}'.format(global_step), v) for k, v in dev_result.items())

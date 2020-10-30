@@ -124,6 +124,8 @@ def only_sentiment_process(save_file, new_file):
   id2class = {value:key for key,value in class2id.items()}
   with open(save_file, 'r') as f:
     lines = f.readlines()
+  #打印多少条样本
+  print_example = 10
   #总数据量
   total = 0
   with open(new_file, 'w') as f:
@@ -151,7 +153,9 @@ def only_sentiment_process(save_file, new_file):
           raise Exception(f"单词在句子中位置对应不上，请检查,句子行数{total}, 句子是{line_chinese}")
         des_line_suffix = f"{aspectTerm}=({start},{end},{sentiment})"
         des_line = des_line_prefix + des_line_suffix.strip()
-        print(des_line)
+        if print_example > 0:
+          print(des_line)
+          print_example -= 1
         total += 1
         f.write(des_line + "\n")
   print(f"文件已生成{new_file}, 总数据量是{total}")
