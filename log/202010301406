@@ -158,3 +158,10 @@
 10/30/2020 14:07:10 - INFO - glue_utils -   labels: 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 
 10/30/2020 14:07:10 - INFO - glue_utils -   evaluate label ids: [[1 9]]
 10/30/2020 14:07:11 - INFO - __main__ -   保存cached文件到本地: ./data/cosmetics/cached_train_bert-base-chinese_128_cosmetics
+10/30/2020 14:07:15 - INFO - __main__ -   ***** 开始 training *****
+10/30/2020 14:07:15 - INFO - __main__ -     总的样本数 = 16134
+10/30/2020 14:07:15 - INFO - __main__ -     Epochs数 = 2
+10/30/2020 14:07:15 - INFO - __main__ -     每个GPU的Batch size = 16
+10/30/2020 14:07:15 - INFO - __main__ -     Total train batch size (w. parallel, distributed & accumulation) = 16
+10/30/2020 14:07:15 - INFO - __main__ -     Gradient Accumulation steps = 1
+10/30/2020 14:07:15 - INFO - __main__ -     Total optimization steps = 1500
